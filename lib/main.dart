@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/app.dart';
 import 'package:shopping_list/apps/groceries/groceries_app.dart';
+import 'package:shopping_list/apps/receipts/receipts_app.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/app/registry.dart';
 import 'package:shopping_list/core/db/database.dart';
@@ -16,6 +17,7 @@ import 'package:shopping_list/core/providers.dart';
 /// it through the `MiniApp` contract.
 const List<MiniApp> installedApps = [
   GroceriesApp(),
+  ReceiptsApp(),
 ];
 
 Future<void> main() async {

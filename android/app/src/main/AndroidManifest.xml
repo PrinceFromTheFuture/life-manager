@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Expenses default to where you are standing when you log them. Both are
+         optional at runtime: LocationService degrades to an empty, editable
+         field rather than blocking a save if permission is refused. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:label="Shopping List"
         android:name="${applicationName}"
