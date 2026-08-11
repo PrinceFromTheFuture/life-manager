@@ -1,10 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shopping_list/data/db/database.dart';
-import 'package:shopping_list/data/image_store.dart';
-import 'package:shopping_list/data/models/trip.dart';
-import 'package:shopping_list/data/repositories/shopping_repository.dart';
+import 'package:shopping_list/apps/groceries/data/groceries_migrations.dart';
+import 'package:shopping_list/core/db/database.dart';
+import 'package:shopping_list/core/storage/image_store.dart';
+import 'package:shopping_list/apps/groceries/data/models/trip.dart';
+import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// The whole data layer runs headlessly against in-memory SQLite, so none of
@@ -22,6 +23,7 @@ void main() {
     database = await AppDatabase.open(
       factory: databaseFactoryFfi,
       path: inMemoryDatabasePath,
+      modules: [groceriesMigrations],
     );
     tempDir = await Directory.systemTemp.createTemp('shopping_list_test');
     repo = ShoppingRepository(database, ImageStore(root: tempDir));

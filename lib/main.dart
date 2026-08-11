@@ -2,11 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'app.dart';
-import 'data/db/database.dart';
-import 'data/image_store.dart';
-import 'data/repositories/shopping_repository.dart';
-import 'state/providers.dart';
+import 'package:shopping_list/app.dart';
+import 'package:shopping_list/apps/groceries/groceries_app.dart';
+import 'package:shopping_list/core/app/mini_app.dart';
+import 'package:shopping_list/core/app/registry.dart';
+import 'package:shopping_list/core/db/database.dart';
+import 'package:shopping_list/core/providers.dart';
+
+/// Every mini-app in this build.
+///
+/// This list is the *only* place apps are enumerated. Adding one means adding
+/// a line here — its schema, screens, feed rows and deep links all travel with
+/// it through the `MiniApp` contract.
+const List<MiniApp> installedApps = [
+  GroceriesApp(),
+];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,16 +26,21 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // The database opens before the first frame. Everything on screen is backed
-  // by it, so there is no useful UI to show in the meantime — and this keeps
-  // every provider downstream synchronous about its dependencies.
-  final database = await AppDatabase.open();
-  final repository = ShoppingRepository(database, ImageStore());
+  // Each module's migrations are collected from the registry, so the database
+  // never needs to know which apps exist.
+  final database = await AppDatabase.open(
+    modules: [for (final app in installedApps) app.migrations],
+  );
 
   runApp(
     ProviderScope(
-      overrides: [repositoryProvider.overrideWithValue(repository)],
-      child: const ShoppingListApp(),
+      overrides: [
+        databaseProvider.overrideWithValue(database),
+        registryProvider.overrideWithValue(
+          const MiniAppRegistry(installedApps),
+        ),
+      ],
+      child: const SpindleApp(),
     ),
   );
 }

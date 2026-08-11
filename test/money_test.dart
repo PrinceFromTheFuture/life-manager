@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shopping_list/util/money.dart';
-import 'package:shopping_list/util/normalize.dart';
+import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/util/normalize.dart';
 
 void main() {
   group('Money.tryParse', () {

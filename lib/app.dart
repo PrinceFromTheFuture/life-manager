@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 
-import 'design/theme.dart';
-import 'features/list/list_screen.dart';
+import 'package:shopping_list/core/design/ink_scope.dart';
+import 'package:shopping_list/core/design/theme.dart';
+import 'package:shopping_list/hub/hub_screen.dart';
 
-class ShoppingListApp extends StatelessWidget {
-  const ShoppingListApp({super.key});
+class SpindleApp extends StatelessWidget {
+  const SpindleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Shopping List',
+      title: 'Spindle',
       debugShowCheckedModeBanner: false,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,
-      home: const ListScreen(),
+      // The shell is inked in plain print, so the only colour anywhere on the
+      // hub belongs to a mini-app.
+      home: InkScope(ink: shellInk, child: const HubScreen()),
     );
   }
 }
