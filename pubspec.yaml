@@ -1,0 +1,47 @@
+name: shopping_list
+description: A personal grocery shopping list — build it, shop it, close it out.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  image_picker: ^1.1.2
+  intl: ^0.19.0
+  wakelock_plus: ^1.2.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # Lets the whole data layer be tested headlessly, with no emulator.
+  sqflite_common_ffi: ^2.3.3
+
+flutter:
+  uses-material-design: true
+
+  # Fonts are bundled, never fetched at runtime — the app has to look right
+  # standing in a store with no signal.
+  fonts:
+    # Display. Variable (opsz, wdth, wght); drive it with FontVariation.
+    - family: Bricolage
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-VF.ttf
+    # Body / UI. Variable (wdth, wght).
+    - family: Instrument
+      fonts:
+        - asset: assets/fonts/InstrumentSans-VF.ttf
+    # Every price, total, quantity and date.
+    - family: SpaceMono
+      fonts:
+        - asset: assets/fonts/SpaceMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/SpaceMono-Bold.ttf
+          weight: 700
