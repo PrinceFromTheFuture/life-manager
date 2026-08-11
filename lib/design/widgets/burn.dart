@@ -46,12 +46,14 @@ class ThermalSurface extends StatelessWidget {
       duration: reduceMotion ? Duration.zero : duration,
       curve: Motion.heat,
       builder: (context, t, child) {
-        final hot = palette.burn(t);
+        final settled = palette.burnGround(t);
         final cool = palette.paper;
 
-        // The leading edge of the sweep, softened over a short band so it
-        // reads as heat spreading rather than a hard wipe.
-        const band = 0.10;
+        // Three zones travelling left to right: paper still untouched ahead of
+        // the head, a hot glow directly under it, and cooled scorch behind.
+        // The glow is what makes this read as something being printed rather
+        // than a rectangle changing colour.
+        const band = 0.09;
         final lead = (t * (1 + band * 2)) - band;
 
         return DecoratedBox(
@@ -59,16 +61,17 @@ class ThermalSurface extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-              colors: [hot, hot, cool, cool],
+              colors: [settled, settled, palette.scorch, cool, cool],
               stops: [
                 0,
                 (lead - band).clamp(0.0, 1.0),
+                lead.clamp(0.0, 1.0),
                 (lead + band).clamp(0.0, 1.0),
                 1,
               ],
             ),
           ),
-          child: builder(context, hot, palette.burnInk(t)),
+          child: builder(context, settled, palette.burnInk(t)),
         );
       },
     );

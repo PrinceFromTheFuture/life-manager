@@ -17,6 +17,7 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
     required this.carbon,
     required this.perforation,
     required this.scorch,
+    required this.settled,
   });
 
   /// Ground. Cool and slightly green — deliberately not a warm cream.
@@ -38,10 +39,19 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
   /// Perforation dots and tear edges.
   final Color perforation;
 
-  /// The brown a receipt passes through before it goes black. Only ever seen
-  /// mid-burn, which is exactly what keeps the animation from reading as a
-  /// plain colour fade.
+  /// The hot leading edge of the burn — the glow directly under the print
+  /// head. Only ever seen mid-sweep, which is what keeps the animation from
+  /// reading as a plain colour fade.
   final Color scorch;
+
+  /// Where a burned row comes to rest.
+  ///
+  /// Deliberately close to [paper] rather than at full [print]. Testing the
+  /// first build on a phone made the problem obvious: burning all the way to
+  /// print made everything already in the trolley the highest-contrast thing
+  /// on screen, which is backwards. What you still have to find is what
+  /// matters. The sweep keeps the drama; the resting state gets out of the way.
+  final Color settled;
 
   /// Light theme — a fresh receipt.
   static const ThermalPalette light = ThermalPalette(
@@ -52,6 +62,7 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
     carbon: Color(0xFF5B4B8A),
     perforation: Color(0xFFC9CCC2),
     scorch: Color(0xFF9A8B6F),
+    settled: Color(0xFFE2DBCA),
   );
 
   /// Dark theme — the same materials, read in a dim kitchen.
@@ -63,28 +74,19 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
     carbon: Color(0xFF9B8AD1),
     perforation: Color(0xFF3A3833),
     scorch: Color(0xFF7A6A50),
+    settled: Color(0xFF2F2A20),
   );
 
-  /// Background of a row at heat level [t] (0 = untouched paper, 1 = burned
-  /// through). Passes through [scorch] so the transition browns before it
-  /// blackens, the way real thermal paper does.
-  Color burn(double t) {
-    final c = t.clamp(0.0, 1.0);
-    if (c <= 0.55) {
-      return Color.lerp(paper, scorch, c / 0.55)!;
-    }
-    return Color.lerp(scorch, print, (c - 0.55) / 0.45)!;
-  }
+  /// Background a row settles to once burned. The sweep itself is drawn by
+  /// [ThermalSurface], which paints [scorch] as a moving leading edge over
+  /// this.
+  Color burnGround(double t) => Color.lerp(paper, settled, t.clamp(0.0, 1.0))!;
 
-  /// Text colour on a row at heat level [t]. Inverts as the paper darkens, so
-  /// the row stays readable the whole way through.
-  Color burnInk(double t) {
-    final c = t.clamp(0.0, 1.0);
-    // Hold the ink dark until the paper is genuinely too dark for it, then
-    // cross over. A linear lerp here would go muddy and unreadable mid-way.
-    if (c <= 0.45) return print;
-    return Color.lerp(print, paper, ((c - 0.45) / 0.55).clamp(0.0, 1.0))!;
-  }
+  /// Text colour at heat level [t]. Recedes toward [faded] rather than
+  /// inverting — the row stays perfectly readable, it just stops competing
+  /// with the things still to buy.
+  Color burnInk(double t) =>
+      Color.lerp(print, faded, t.clamp(0.0, 1.0))!;
 
   @override
   ThermalPalette copyWith({
@@ -95,6 +97,7 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
     Color? carbon,
     Color? perforation,
     Color? scorch,
+    Color? settled,
   }) {
     return ThermalPalette(
       paper: paper ?? this.paper,
@@ -104,6 +107,7 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
       carbon: carbon ?? this.carbon,
       perforation: perforation ?? this.perforation,
       scorch: scorch ?? this.scorch,
+      settled: settled ?? this.settled,
     );
   }
 
@@ -118,6 +122,7 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
       carbon: Color.lerp(carbon, other.carbon, t)!,
       perforation: Color.lerp(perforation, other.perforation, t)!,
       scorch: Color.lerp(scorch, other.scorch, t)!,
+      settled: Color.lerp(settled, other.settled, t)!,
     );
   }
 }

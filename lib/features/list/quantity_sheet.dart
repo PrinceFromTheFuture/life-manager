@@ -174,7 +174,9 @@ class _StepButton extends StatelessWidget {
     final enabled = onPressed != null;
 
     return Material(
-      color: enabled ? palette.paperShade : palette.paperShade.withOpacity(0.4),
+      color: enabled
+          ? palette.paperShade
+          : palette.paperShade.withValues(alpha: 0.4),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onPressed,

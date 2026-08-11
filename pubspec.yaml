@@ -14,7 +14,9 @@ dependencies:
   path: ^1.9.0
   path_provider: ^2.1.4
   image_picker: ^1.1.2
-  intl: ^0.19.0
+  # Widened deliberately: intl moves in 0.x minors, and pinning to one of them
+  # is the usual cause of an unresolvable dependency graph later.
+  intl: '>=0.19.0 <0.21.0'
   wakelock_plus: ^1.2.8
 
 dev_dependencies:

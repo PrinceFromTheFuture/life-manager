@@ -77,34 +77,46 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Scaffold(
       backgroundColor: palette.paper,
       appBar: AppBar(title: const Text('Check out')),
-      body: listAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
-        ),
-        data: (list) => _CheckoutForm(
-          list: list,
-          totalController: _totalController,
-          noteController: _noteController,
-          error: _error,
-          onTotalChanged: () => setState(() => _error = null),
-        ),
-      ),
-      bottomNavigationBar: Container(
-        color: palette.paper,
-        padding: EdgeInsets.fromLTRB(
-          Space.lg,
-          Space.md,
-          Space.lg,
-          Space.md + MediaQuery.paddingOf(context).bottom,
-        ),
-        child: SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: _saving ? null : _complete,
-            child: Text(_saving ? 'Saving…' : 'Complete trip'),
+      // In the body rather than `bottomNavigationBar` for the same reason as
+      // the list screen: the total field autofocuses, so a bottom bar would put
+      // "Complete trip" underneath the keyboard the instant this screen opens.
+      body: Column(
+        children: [
+          Expanded(
+            child: listAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text(
+                  '$e',
+                  style: Type.caption.copyWith(color: palette.faded),
+                ),
+              ),
+              data: (list) => _CheckoutForm(
+                list: list,
+                totalController: _totalController,
+                noteController: _noteController,
+                error: _error,
+                onTotalChanged: () => setState(() => _error = null),
+              ),
+            ),
           ),
-        ),
+          Container(
+            color: palette.paper,
+            padding: EdgeInsets.fromLTRB(
+              Space.lg,
+              Space.md,
+              Space.lg,
+              Space.md + MediaQuery.paddingOf(context).bottom,
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _saving ? null : _complete,
+                child: Text(_saving ? 'Saving…' : 'Complete trip'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

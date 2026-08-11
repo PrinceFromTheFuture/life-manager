@@ -1,5 +1,5 @@
-import 'dart:ui' show FontVariation;
-
+// FontVariation comes through material.dart; see Type below for why the
+// variable-font axes are set explicitly.
 import 'package:flutter/material.dart';
 
 import 'tokens.dart';

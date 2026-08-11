@@ -44,18 +44,27 @@ class ListScreen extends ConsumerWidget {
           const SizedBox(width: Space.sm),
         ],
       ),
-      body: listAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _LoadFailed(error: e),
-        data: (list) =>
-            list.isEmpty ? const _EmptyList() : _Roll(list: list),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
+      // The add field and its suggestion strip live in the body, not in
+      // `bottomNavigationBar`. Scaffold does not lift a bottom bar out of the
+      // way of the keyboard, so on the first device build the field, the
+      // suggestions and the primary action were all buried under it — you
+      // could not see what you were typing, and autocomplete was invisible at
+      // the exact moment it was useful. Inside the body, resizeToAvoidBottomInset
+      // shrinks the list instead and everything stays reachable.
+      body: Column(
         children: [
+          Expanded(
+            child: listAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _LoadFailed(error: e),
+              data: (list) =>
+                  list.isEmpty ? const _EmptyList() : _Roll(list: list),
+            ),
+          ),
           listAsync.maybeWhen(
-            data: (list) =>
-                list.isEmpty ? const SizedBox.shrink() : _PrimaryAction(list: list),
+            data: (list) => list.isEmpty
+                ? const SizedBox.shrink()
+                : _PrimaryAction(list: list),
             orElse: () => const SizedBox.shrink(),
           ),
           const AddItemBar(),
