@@ -45,11 +45,11 @@ class ReceiptsApp implements MiniApp {
   /// screen rather than two is the difference between logging expenses and
   /// meaning to.
   @override
-  List<QuickAction> quickActions(BuildContext context) => const [
+  List<QuickAction> quickActions(BuildContext context) => [
         QuickAction(
           label: 'Add expense',
           icon: Icons.photo_camera_outlined,
-          onInvoke: ExpenseSheet.open,
+          builder: (_) => const ExpenseSheet(),
         ),
       ];
 

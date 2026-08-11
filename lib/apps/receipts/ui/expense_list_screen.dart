@@ -173,6 +173,9 @@ class _ExpenseRow extends ConsumerWidget {
       // than offering an undo it could not honour.
       confirmDismiss: (_) => showDialog<bool>(
         context: context,
+        // Keeps the dialog inside this app's ink; the root navigator is above
+        // the InkScope.
+        useRootNavigator: false,
         builder: (context) => AlertDialog(
           backgroundColor: palette.paper,
           surfaceTintColor: Colors.transparent,

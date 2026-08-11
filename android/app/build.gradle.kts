@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.amirw.shopping_list"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned above flutter.compileSdkVersion because geolocator compiles
+    // against API 36. compileSdk only controls which APIs are available at
+    // build time — targetSdk and minSdk are untouched, so runtime behaviour
+    // and device support are unchanged.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

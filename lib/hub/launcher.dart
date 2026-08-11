@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:shopping_list/core/app/mini_app.dart';
-import 'package:shopping_list/core/design/ink_scope.dart';
+import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 
@@ -52,13 +52,10 @@ class _AppStub extends StatelessWidget {
         // Paper has no rounded corners; only controls do. A stub is paper.
         borderRadius: BorderRadius.zero,
         child: InkWell(
+          // MiniAppHost carries both the app's ink and its own navigator, so
+          // everything the app pushes from here stays inked.
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => InkScope(
-                ink: app.ink,
-                child: Builder(builder: app.buildHome),
-              ),
-            ),
+            MaterialPageRoute<void>(builder: (_) => MiniAppHost(app: app)),
           ),
           child: IntrinsicHeight(
             child: Row(

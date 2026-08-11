@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/core/activity/providers.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
+import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/app/registry.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
@@ -84,7 +85,17 @@ class _QuickActions extends StatelessWidget {
           for (final (app, action) in actions) ...[
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => action.onInvoke(context),
+                // Hosted in the owning app's ink and navigator, so the sheet
+                // looks like it belongs to that app rather than to the shell.
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    fullscreenDialog: true,
+                    builder: (_) => MiniAppHost(
+                      app: app,
+                      initialScreen: action.builder,
+                    ),
+                  ),
+                ),
                 icon: Icon(action.icon, size: 18),
                 label: Text(action.label),
                 style: OutlinedButton.styleFrom(

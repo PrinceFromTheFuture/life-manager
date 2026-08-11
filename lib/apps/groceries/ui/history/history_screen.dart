@@ -56,6 +56,9 @@ class _TripSlip extends ConsumerWidget {
     // the receipt photo too, and there is no undo for that.
     final confirmed = await showDialog<bool>(
       context: context,
+      // Defaults to the root navigator, which sits above the app's InkScope —
+      // the dialog would come out in the shell's ink instead of this app's.
+      useRootNavigator: false,
       builder: (context) => AlertDialog(
         backgroundColor: context.thermal.paper,
         surfaceTintColor: Colors.transparent,

@@ -62,21 +62,26 @@ class LocationService {
   /// Turns coordinates into something a person recognises.
   ///
   /// Coordinates are still returned even when this fails, so the expense keeps
-  /// a usable record of where it happened.
+  /// a usable record of where it happened even without a readable name.
   Future<String?> _describe(double latitude, double longitude) async {
     try {
-      final marks = await placemarkFromCoordinates(latitude, longitude);
+      // geocoding 5 moved from top-level functions to an instance API.
+      final marks =
+          await Geocoding().placemarkFromCoordinates(latitude, longitude);
       if (marks.isEmpty) return null;
       final mark = marks.first;
 
-      // Street and town, skipping empty parts rather than emitting ", ,".
-      final parts = [
-        if ((mark.thoroughfare ?? '').isNotEmpty)
-          [mark.thoroughfare, mark.subThoroughfare]
-              .where((p) => (p ?? '').isNotEmpty)
-              .join(' '),
-        if ((mark.locality ?? '').isNotEmpty) mark.locality!,
-      ].where((p) => p.trim().isNotEmpty).toList();
+      // Street then town, skipping empty parts rather than emitting ", ,".
+      final street = <String?>[mark.thoroughfare, mark.subThoroughfare]
+          .whereType<String>()
+          .where((part) => part.trim().isNotEmpty)
+          .join(' ');
+      final town = mark.locality ?? '';
+
+      final parts = <String>[
+        if (street.trim().isNotEmpty) street.trim(),
+        if (town.trim().isNotEmpty) town.trim(),
+      ];
 
       return parts.isEmpty ? null : parts.join(', ');
     } on Exception {

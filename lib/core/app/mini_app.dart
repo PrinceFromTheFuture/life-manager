@@ -27,14 +27,20 @@ class QuickAction {
   const QuickAction({
     required this.label,
     required this.icon,
-    required this.onInvoke,
+    required this.builder,
   });
 
   /// Says exactly what happens: "Add expense", not "New".
   final String label;
 
   final IconData icon;
-  final void Function(BuildContext context) onInvoke;
+
+  /// The screen this opens.
+  ///
+  /// The action names a screen rather than pushing one itself, so the hub can
+  /// host it inside the owning app's ink and navigator. An action that pushed
+  /// its own route would land on the root navigator and lose both.
+  final WidgetBuilder builder;
 }
 
 /// One app inside the life manager.

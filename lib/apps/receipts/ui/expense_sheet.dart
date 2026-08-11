@@ -173,6 +173,8 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       initialDate: _occurredAt,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
+      // Same reason as the dialogs: the root navigator is above the InkScope.
+      useRootNavigator: false,
     );
     if (picked != null) {
       setState(() {
