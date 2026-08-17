@@ -7,6 +7,7 @@ import 'package:shopping_list/apps/groceries/ui/list/list_screen.dart';
 import 'package:shopping_list/core/activity/activity_entry.dart';
 import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
+import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/db/migration.dart';
 
 /// The grocery list, as a mini-app.
@@ -20,6 +21,9 @@ class GroceriesApp implements MiniApp {
 
   @override
   String get name => 'Groceries';
+
+  @override
+  String get tagline => 'Build it, shop it, keep the slip.';
 
   /// Carbon-copy violet — the ink of duplicate slips.
   @override
@@ -55,10 +59,11 @@ class GroceriesApp implements MiniApp {
       amountMinor: entry.amountMinor,
       onTap: entry.refId == null
           ? null
-          : () {
-              final route = routeForActivity(entry);
-              if (route != null) Navigator.of(context).push(route);
-            },
+          : () => openMiniApp(
+                context,
+                this,
+                initialScreen: (_) => TripDetailScreen(tripId: entry.refId!),
+              ),
     );
   }
 

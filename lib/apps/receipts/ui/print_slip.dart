@@ -146,7 +146,8 @@ class _PrintSlipState extends State<_PrintSlip>
                           children: [
                             Text(
                               'TOTAL',
-                              style: Type.eyebrow.copyWith(color: palette.faded),
+                              style:
+                                  Type.eyebrow.copyWith(color: palette.faded),
                             ),
                             Text(
                               Money.format(widget.amountMinor),

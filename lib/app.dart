@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:shopping_list/core/design/ink_scope.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/hub/hub_screen.dart';
 
@@ -12,6 +13,7 @@ class SpindleApp extends StatelessWidget {
     return MaterialApp(
       title: 'Spindle',
       debugShowCheckedModeBanner: false,
+      navigatorKey: paperSnackNavigatorKey,
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system,

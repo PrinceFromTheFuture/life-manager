@@ -16,12 +16,18 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-// Raise any plugin still compiling against an older SDK up to ours.
+// Pin every plugin's compileSdk to the one platform we know is actually
+// installed and resolvable, in both directions.
 //
-// Flutter plugins pin their own compileSdk, and one lagging behind fails the
-// whole build with an error naming the plugin rather than anything in this
-// project — as geocoding_android did at API 33. This keeps that from being a
-// recurring papercut every time a dependency is added.
+// Flutter plugins pin their own compileSdk, and one that disagrees with what
+// is on disk fails the whole build with an error naming the plugin rather
+// than anything in this project — as geocoding_android did at API 33, lagging
+// behind. flutter_secure_storage went the other way and asks for 37, which
+// the SDK manager installs as a fractional API level ("android-37.0", not
+// "android-37" — Android's newer versioning decouples API level from
+// platform number) that this Gradle hash string can never resolve. Pinning
+// everyone to the same known-good integer level avoids both failure modes
+// every time a dependency is added or bumps its own pin.
 //
 // compileSdk only decides which APIs are visible at build time. Each plugin's
 // minSdk and targetSdk are untouched, so device support and runtime behaviour
@@ -37,7 +43,7 @@ subprojects {
             val current = android.compileSdkVersion
                 ?.substringAfter("android-")
                 ?.toIntOrNull()
-            if (current != null && current < 36) {
+            if (current != null && current != 36) {
                 android.compileSdkVersion(36)
             }
         }

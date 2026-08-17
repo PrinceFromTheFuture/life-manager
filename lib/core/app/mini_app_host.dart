@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/design/ink_scope.dart';
+import 'package:shopping_list/core/design/slip_route.dart';
 
 /// Runs one mini-app inside its own navigation stack and its own ink.
 ///
@@ -61,4 +62,22 @@ class _MiniAppHostState extends State<MiniAppHost> {
       ),
     );
   }
+}
+
+/// Opens a mini-app on the hub's navigator, inside its own ink.
+///
+/// Feed taps, launcher stubs and quick actions all go through here so a
+/// detail opened from the hub is not painted in the shell's colourless ink.
+Future<T?> openMiniApp<T>(
+  BuildContext context,
+  MiniApp app, {
+  WidgetBuilder? initialScreen,
+  bool fullscreenDialog = false,
+}) {
+  return Navigator.of(context).push<T>(
+    SlipRoute(
+      fullscreenDialog: fullscreenDialog,
+      builder: (_) => MiniAppHost(app: app, initialScreen: initialScreen),
+    ),
+  );
 }

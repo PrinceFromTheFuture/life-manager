@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -46,7 +47,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     });
 
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       await ref
@@ -55,8 +55,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
       // Back to the list, which is now empty and ready for the next trip.
       navigator.popUntil((route) => route.isFirst);
-      messenger.showSnackBar(
-        SnackBar(content: Text('Trip saved · ${Money.format(total)}')),
+      showPaperSnack(
+        context,
+        message: 'Trip saved · ${Money.format(total)}',
       );
     } on Exception catch (e) {
       // Leave the screen up with everything still filled in — the total and

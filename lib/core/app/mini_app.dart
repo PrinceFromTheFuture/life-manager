@@ -57,6 +57,9 @@ abstract class MiniApp {
   /// Shown in the launcher, in the user's language.
   String get name;
 
+  /// One line on the launcher stub. What this app is for, not what it is called.
+  String get tagline => '';
+
   AppInk get ink;
   IconData get icon;
 

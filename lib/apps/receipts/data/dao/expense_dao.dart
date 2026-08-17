@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
+import 'package:shopping_list/apps/receipts/data/models/month_kind_totals.dart';
 import 'package:shopping_list/core/util/normalize.dart';
 
 class ExpenseDao {
@@ -14,6 +15,20 @@ class ExpenseDao {
       orderBy: 'occurred_at DESC, id DESC',
       limit: limit,
       offset: offset,
+    );
+    return rows.map(Expense.fromMap).toList();
+  }
+
+  /// Every expense in `[from, to)`, for the month selector on the main list
+  /// and for statistics. A dedicated query rather than filtering [recent]'s
+  /// capped result — a month several pages back must not silently come up
+  /// empty just because it fell outside that cap.
+  Future<List<Expense>> between(DateTime from, DateTime to) async {
+    final rows = await _db.query(
+      'expenses',
+      where: 'occurred_at >= ? AND occurred_at < ?',
+      whereArgs: [from.millisecondsSinceEpoch, to.millisecondsSinceEpoch],
+      orderBy: 'occurred_at DESC, id DESC',
     );
     return rows.map(Expense.fromMap).toList();
   }
@@ -49,6 +64,41 @@ class ExpenseDao {
       ),
     );
     return value ?? 0;
+  }
+
+  /// Business and personal totals per local calendar month, newest first.
+  ///
+  /// Grouped in Dart rather than SQL because "which month is this" is a
+  /// local-timezone question, and SQLite would answer it in UTC.
+  Future<List<MonthKindTotals>> kindTotalsByMonth({int months = 12}) async {
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month - (months - 1));
+    final rows = await _db.query(
+      'expenses',
+      columns: ['occurred_at', 'amount_minor', 'is_business'],
+      where: 'occurred_at >= ?',
+      whereArgs: [from.millisecondsSinceEpoch],
+    );
+
+    final totals = <DateTime, MonthKindTotals>{};
+    for (final row in rows) {
+      final local =
+          DateTime.fromMillisecondsSinceEpoch(row['occurred_at']! as int)
+              .toLocal();
+      final key = DateTime(local.year, local.month);
+      final amount = row['amount_minor']! as int;
+      final business = (row['is_business'] as int? ?? 0) == 1;
+      final current = totals[key] ??
+          MonthKindTotals(month: key, businessMinor: 0, personalMinor: 0);
+      totals[key] = MonthKindTotals(
+        month: key,
+        businessMinor: current.businessMinor + (business ? amount : 0),
+        personalMinor: current.personalMinor + (business ? 0 : amount),
+      );
+    }
+
+    final ordered = totals.keys.toList()..sort((a, b) => b.compareTo(a));
+    return [for (final key in ordered) totals[key]!];
   }
 
   /// Merchant names already seen, for autocomplete on the merchant field.

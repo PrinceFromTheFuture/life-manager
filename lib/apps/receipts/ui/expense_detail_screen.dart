@@ -7,10 +7,49 @@ import 'package:intl/intl.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
+import 'package:shopping_list/apps/receipts/ui/place_map.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
+
+/// Asks before destroying a receipt photo. Used from the list swipe and from
+/// the slip itself, so the wording is learned once.
+Future<bool> confirmDeleteExpense(BuildContext context) async {
+  final palette = context.thermal;
+  return await showDialog<bool>(
+        context: context,
+        // Keeps the dialog inside this app's ink; the root navigator is above
+        // the InkScope.
+        useRootNavigator: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: palette.paper,
+          surfaceTintColor: Colors.transparent,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          titleTextStyle:
+              Type.display.copyWith(fontSize: 20, color: palette.print),
+          contentTextStyle: Type.body.copyWith(color: palette.print),
+          title: const Text('Delete this expense?'),
+          content: const Text(
+            'The amount and the receipt photo are deleted for good.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Keep'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
 
 /// One expense, laid out as the slip it is.
 class ExpenseDetailScreen extends ConsumerWidget {
@@ -86,22 +125,56 @@ class _Detail extends ConsumerWidget {
         const SizedBox(height: Space.lg),
         const PerforatedRule(),
         const SizedBox(height: Space.lg),
-
-        _Field(label: 'AMOUNT', value: Money.format(expense.amountMinor), mono: true),
+        _Field(
+            label: 'AMOUNT',
+            value: Money.format(expense.amountMinor),
+            mono: true),
+        _Field(
+          label: 'FOR',
+          value: expense.isBusiness ? 'Business' : 'Personal',
+        ),
         _CategoryField(categoryId: expense.categoryId),
         _AccountField(accountId: expense.accountId),
-        if ((expense.locationLabel ?? '').isNotEmpty)
-          _Field(label: 'PLACE', value: expense.locationLabel!),
         if ((expense.description ?? '').isNotEmpty)
           _Field(label: 'NOTE', value: expense.description!),
         if (expense.source == ExpenseSource.scanned)
           const _Field(label: 'SOURCE', value: 'Read from the receipt'),
-
+        if (expense.latitude != null && expense.longitude != null) ...[
+          const SizedBox(height: Space.lg),
+          const PerforatedRule(),
+          const SizedBox(height: Space.lg),
+          PlaceMap(
+            latitude: expense.latitude!,
+            longitude: expense.longitude!,
+            label: expense.locationLabel,
+          ),
+        ] else if ((expense.locationLabel ?? '').isNotEmpty) ...[
+          const SizedBox(height: Space.lg),
+          const PerforatedRule(),
+          const SizedBox(height: Space.lg),
+          _Field(label: 'PLACE', value: expense.locationLabel!),
+        ],
         const SizedBox(height: Space.lg),
         const TearEdge(),
         const SizedBox(height: Space.lg),
-
         _ReceiptImage(relativePath: expense.receiptPath),
+        const SizedBox(height: Space.xl),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () async {
+              if (!await confirmDeleteExpense(context)) return;
+              if (!context.mounted) return;
+              await ref.read(expensesProvider.notifier).remove(expense.id!);
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete this slip'),
+          ),
+        ),
       ],
     );
   }

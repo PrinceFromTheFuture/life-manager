@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -53,12 +54,14 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
   void _bump(double delta) {
     // `num.clamp` is declared as returning num, so the result is narrowed back
     // explicitly rather than relying on analyzer special-casing.
-    setState(() => _quantity = (_quantity + delta).clamp(0.0, 999.0).toDouble());
+    setState(
+        () => _quantity = (_quantity + delta).clamp(0.0, 999.0).toDouble());
     unawaited(HapticFeedback.selectionClick());
   }
 
   String get _quantityLabel {
-    if (_quantity == _quantity.roundToDouble()) return _quantity.round().toString();
+    if (_quantity == _quantity.roundToDouble())
+      return _quantity.round().toString();
     return _quantity
         .toStringAsFixed(2)
         .replaceFirst(RegExp(r'0+$'), '')
@@ -79,7 +82,8 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.lg, Space.md),
+        padding:
+            const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.lg, Space.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +95,6 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
             const SizedBox(height: Space.md),
             const PerforatedRule(),
             const SizedBox(height: Space.lg),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -106,7 +109,6 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
                 _StepButton(icon: Icons.add, onPressed: () => _bump(_step)),
               ],
             ),
-
             const SizedBox(height: Space.lg),
             Wrap(
               spacing: Space.sm,
@@ -120,7 +122,6 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
                   ),
               ],
             ),
-
             const SizedBox(height: Space.lg),
             Row(
               children: [
@@ -128,18 +129,14 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
                   child: OutlinedButton(
                     onPressed: () async {
                       final navigator = Navigator.of(context);
-                      final messenger = ScaffoldMessenger.of(context);
                       final controller = ref.read(activeListProvider.notifier);
                       final removed = await controller.deleteItem(widget.item);
                       navigator.pop();
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text('Removed ${removed.nameSnapshot}'),
-                          action: SnackBarAction(
-                            label: 'Undo',
-                            onPressed: () => controller.restoreItem(removed),
-                          ),
-                        ),
+                      showPaperSnack(
+                        context,
+                        message: 'Removed ${removed.nameSnapshot}',
+                        actionLabel: 'Undo',
+                        onAction: () => controller.restoreItem(removed),
                       );
                     },
                     child: const Text('Remove'),

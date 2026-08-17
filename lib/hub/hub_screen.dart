@@ -2,21 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/core/activity/providers.dart';
-import 'package:shopping_list/core/app/mini_app.dart';
-import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/app/registry.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/hub/account_screen.dart';
 import 'package:shopping_list/hub/activity_feed.dart';
 import 'package:shopping_list/hub/launcher.dart';
+import 'package:shopping_list/hub/quick_action_drawer.dart';
 
 /// The shell's home screen.
 ///
-/// Two jobs, in priority order: get into an app in one tap, and show what has
-/// been happening across all of them. It carries no colour of its own — every
-/// coloured mark on this screen belongs to a mini-app, which is what makes the
-/// ink stamps readable as identity rather than decoration.
+/// Three jobs, in priority order: get into an app in one tap, start something
+/// without opening an app first, and show what has been happening across all
+/// of them. It carries no colour of its own — every coloured mark on this
+/// screen belongs to a mini-app, which is what makes the ink stamps readable
+/// as identity rather than decoration.
 class HubScreen extends ConsumerWidget {
   const HubScreen({super.key});
 
@@ -26,9 +27,44 @@ class HubScreen extends ConsumerWidget {
     final registry = ref.watch(registryProvider);
     final feed = ref.watch(activityFeedProvider);
 
+    void openAccount() => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+        );
+
     return Scaffold(
       backgroundColor: palette.paper,
-      appBar: AppBar(title: const Text('Spindle')),
+      appBar: AppBar(
+        titleSpacing: Space.lg,
+        title: InkWell(
+          onTap: openAccount,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: palette.paperShade,
+                foregroundColor: palette.print,
+                child: const Icon(Icons.person, size: 18),
+              ),
+              const SizedBox(width: Space.sm),
+              Text(
+                "Amir's Life Manager",
+                style: Type.item.copyWith(color: palette.print),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: openAccount,
+          ),
+          const SizedBox(width: Space.xs),
+        ],
+      ),
       body: RefreshIndicator(
         color: palette.print,
         backgroundColor: palette.paperShade,
@@ -37,8 +73,6 @@ class HubScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: Space.xxl),
           children: [
             Launcher(apps: registry.apps),
-            const SizedBox(height: Space.lg),
-            _QuickActions(apps: registry.apps),
             feed.when(
               loading: () => const Padding(
                 padding: EdgeInsets.all(Space.xxl),
@@ -57,59 +91,15 @@ class HubScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Actions apps offer without being opened.
-///
-/// Only rendered when an app actually contributes one — an empty strip of
-/// chrome is worse than no strip.
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.apps});
-
-  final List<MiniApp> apps;
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = [
-      for (final app in apps)
-        ...app.quickActions(context).map((a) => (app, a)),
-    ];
-    if (actions.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-      child: Row(
-        children: [
-          for (final (app, action) in actions) ...[
-            Expanded(
-              child: OutlinedButton.icon(
-                // Hosted in the owning app's ink and navigator, so the sheet
-                // looks like it belongs to that app rather than to the shell.
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    fullscreenDialog: true,
-                    builder: (_) => MiniAppHost(
-                      app: app,
-                      initialScreen: action.builder,
-                    ),
-                  ),
-                ),
-                icon: Icon(action.icon, size: 18),
-                label: Text(action.label),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: app.ink.of(Theme.of(context).brightness),
-                  side: BorderSide(
-                    color: app.ink.of(Theme.of(context).brightness),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-            if ((app, action) != actions.last) const SizedBox(width: Space.md),
-          ],
-        ],
+      // A single, fixed control rather than a row that grows one button per
+      // app quick action — that row would already be crowded at two apps and
+      // unusable at five. Everything it offers lives in the drawer instead.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showQuickActions(context),
+        tooltip: 'Start something',
+        backgroundColor: palette.print,
+        foregroundColor: palette.paper,
+        child: const Icon(Icons.bolt),
       ),
     );
   }

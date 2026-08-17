@@ -5,6 +5,7 @@ import 'package:shopping_list/apps/receipts/data/dao/lookups_dao.dart';
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
+import 'package:shopping_list/apps/receipts/data/models/month_kind_totals.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_activity.dart';
 import 'package:shopping_list/core/activity/activity_dao.dart';
 import 'package:shopping_list/core/activity/activity_entry.dart';
@@ -27,6 +28,9 @@ class ExpenseRepository {
   Future<List<Expense>> recent({int limit = 200}) =>
       expenses.recent(limit: limit);
 
+  Future<List<Expense>> between(DateTime from, DateTime to) =>
+      expenses.between(from, to);
+
   Future<Expense?> byId(int id) => expenses.byId(id);
 
   Future<List<ExpenseCategory>> categories() => lookups.categories();
@@ -40,6 +44,9 @@ class ExpenseRepository {
 
   Future<int> totalBetween(DateTime from, DateTime to) =>
       expenses.totalBetween(from, to);
+
+  Future<List<MonthKindTotals>> kindTotalsByMonth({int months = 12}) =>
+      expenses.kindTotalsByMonth(months: months);
 
   // ---------------------------------------------------------------- writing
 
@@ -155,9 +162,29 @@ class ExpenseRepository {
     if (expense != null) await images.delete(expense.receiptPath);
   }
 
-  Future<ExpenseCategory> addCategory(String name) =>
-      lookups.addCategory(name);
+  Future<ExpenseCategory> addCategory(String name) => lookups.addCategory(name);
 
-  Future<Account> addAccount(String name, {String kind = 'other', String? last4}) =>
+  Future<void> renameCategory(int id, String name) =>
+      lookups.renameCategory(id, name);
+
+  Future<int> categoryUsage(int id) => lookups.categoryUsage(id);
+
+  Future<void> deleteCategory(int id) => lookups.deleteCategory(id);
+
+  Future<void> reorderCategories(List<int> idsInOrder) =>
+      lookups.reorderCategories(idsInOrder);
+
+  Future<Account> addAccount(String name,
+          {String kind = 'other', String? last4}) =>
       lookups.addAccount(name, kind: kind, last4: last4);
+
+  Future<void> renameAccount(int id, String name) =>
+      lookups.renameAccount(id, name);
+
+  Future<int> accountUsage(int id) => lookups.accountUsage(id);
+
+  Future<void> deleteAccount(int id) => lookups.deleteAccount(id);
+
+  Future<void> reorderAccounts(List<int> idsInOrder) =>
+      lookups.reorderAccounts(idsInOrder);
 }

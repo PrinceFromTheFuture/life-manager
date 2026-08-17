@@ -33,51 +33,60 @@ class ActivityRowShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.thermal;
 
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Space.lg,
-          vertical: Space.md + 2,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // The stamp. A printed mark, not a dot or a pill — those read as
-            // status indicators, which is the wrong promise.
-            Container(width: 3, height: 26, color: ink),
-            const SizedBox(width: Space.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: Type.item.copyWith(color: palette.print),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (subtitle != null && subtitle!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: Type.caption.copyWith(color: palette.faded),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        // The padding around the row is part of the target. Without this,
+        // taps on the quiet space around the ink bar miss the child and
+        // do nothing — which on the hub looked like the feed was dead.
+        child: ColoredBox(
+          color: Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.md + 2,
             ),
-            if (amountMinor != null) ...[
-              const SizedBox(width: Space.md),
-              Text(
-                Money.format(amountMinor!),
-                style: Type.monoBold.copyWith(color: palette.print),
-              ),
-            ],
-          ],
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // The stamp. A printed mark, not a dot or a pill — those read as
+                // status indicators, which is the wrong promise.
+                Container(width: 3, height: 26, color: ink),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: Type.item.copyWith(color: palette.print),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (subtitle != null && subtitle!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          style: Type.caption.copyWith(color: palette.faded),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (amountMinor != null) ...[
+                  const SizedBox(width: Space.md),
+                  Text(
+                    Money.format(amountMinor!),
+                    style: Type.monoBold.copyWith(color: palette.print),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

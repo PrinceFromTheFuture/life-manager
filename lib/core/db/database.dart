@@ -15,9 +15,12 @@ import 'package:shopping_list/core/db/migrator.dart';
 /// counter is deliberately unused, because it forces all modules to coordinate
 /// through one number. See [Migrator].
 class AppDatabase {
-  AppDatabase._(this.db);
+  AppDatabase._(this.db, this.path);
 
   final Database db;
+
+  /// Absolute path of the open file. `:memory:` in headless tests.
+  final String path;
 
   static const String fileName = 'shopping_list.db';
 
@@ -35,7 +38,7 @@ class AppDatabase {
     );
 
     await Migrator.run(db, [coreMigrations, ...modules]);
-    return AppDatabase._(db);
+    return AppDatabase._(db, dbPath);
   }
 
   /// Foreign keys are off by default in SQLite and must be enabled per

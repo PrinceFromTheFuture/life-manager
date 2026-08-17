@@ -9,12 +9,15 @@ import 'package:intl/intl.dart';
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
+import 'package:shopping_list/apps/receipts/data/ocr/receipt_scanner.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/print_slip.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/settings/api_keys.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// Recording an expense.
@@ -61,6 +64,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
   DateTime _occurredAt = DateTime.now();
   double? _latitude;
   double? _longitude;
+  bool _isBusiness = false;
 
   bool _keypadOpen = false;
   bool _showNote = false;
@@ -68,6 +72,13 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
   bool _saving = false;
   bool _categoryChosenByHand = false;
   Timer? _predictDebounce;
+
+  ExpenseSource _source = ExpenseSource.manual;
+  String? _ocrRaw;
+  String? _ocrModel;
+  bool _scanChoiceMade = false;
+  bool _scanning = false;
+  bool _locationSettled = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -88,12 +99,18 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       _longitude = existing.longitude;
       _showNote = (existing.description ?? '').isNotEmpty;
       _categoryChosenByHand = true;
+      _source = existing.source;
+      _ocrRaw = existing.ocrRaw;
+      _ocrModel = existing.ocrModel;
+      _isBusiness = existing.isBusiness;
+      _locationSettled = true;
     } else {
       // Straight to the camera. The receipt is required, so there is nothing
-      // useful to do on this screen until one exists.
+      // useful to do on this screen until one exists. Location waits until
+      // after the picker closes — otherwise the two permission dialogs stack
+      // and the first-run path looks broken.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _capture(ImageSource.camera);
-        _fillLocation();
       });
     }
 
@@ -114,7 +131,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
 
   Future<void> _capture(ImageSource source) async {
     setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final picked = await ImagePicker().pickImage(
@@ -124,17 +140,16 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       );
       if (picked != null) {
         setState(() => _receiptSourcePath = picked.path);
+        if (!_locationSettled) unawaited(_fillLocation());
       }
     } on Exception catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            source == ImageSource.camera
-                ? "Couldn't open the camera. Check camera access in Settings, "
-                    'or choose a photo instead.'
-                : "Couldn't load that photo. Try another one. ($e)",
-          ),
-        ),
+      if (!mounted) return;
+      showPaperSnack(
+        context,
+        message: source == ImageSource.camera
+            ? "Couldn't open the camera. Check camera access in Settings, "
+                'or choose a photo instead.'
+            : "Couldn't load that photo. Try another one. ($e)",
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -144,13 +159,84 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
   /// Fills the location in the background. Never blocks anything.
   Future<void> _fillLocation() async {
     final guess = await ref.read(locationServiceProvider).currentPlace();
-    if (!mounted || !guess.hasAny) return;
-    // Don't stomp on something already typed.
-    if (_locationController.text.isNotEmpty) return;
+    if (!mounted) return;
     setState(() {
+      _locationSettled = true;
+      // Don't stomp on something already typed.
+      if (_locationController.text.isNotEmpty || !guess.hasAny) return;
       _locationController.text = guess.label ?? '';
       _latitude = guess.latitude;
       _longitude = guess.longitude;
+    });
+  }
+
+  Future<void> _runScan() async {
+    final path = _receiptSourcePath;
+    if (path == null) return;
+
+    setState(() => _scanning = true);
+
+    try {
+      final scanner = await ref.read(receiptScannerProvider.future);
+      if (scanner == null) {
+        throw Exception('Scanning is not set up. Add both keys in Settings.');
+      }
+      final categories = await ref.read(categoriesProvider.future);
+      final result = await scanner.scan(
+        File(path),
+        categories: [for (final c in categories) c.name],
+      );
+      if (!mounted) return;
+      _applyScanResult(result, categories);
+    } on Exception catch (e) {
+      if (!mounted) return;
+      showPaperSnack(context, message: '$e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _scanning = false;
+          _scanChoiceMade = true;
+        });
+      }
+    }
+  }
+
+  void _applyScanResult(ScanResult result, List<ExpenseCategory> categories) {
+    final parsed = result.parsed;
+    setState(() {
+      if ((parsed.merchant ?? '').trim().isNotEmpty) {
+        _merchantController.text = parsed.merchant!.trim();
+      }
+      if (parsed.totalAmountMinor != null) {
+        _amount = AmountEntry.fromAgorot(parsed.totalAmountMinor!);
+      }
+      if (parsed.occurredAt != null) {
+        final d = parsed.occurredAt!;
+        _occurredAt = DateTime(
+          d.year,
+          d.month,
+          d.day,
+          _occurredAt.hour,
+          _occurredAt.minute,
+        );
+      }
+      if ((parsed.description ?? '').trim().isNotEmpty) {
+        _noteController.text = parsed.description!.trim();
+        _showNote = true;
+      }
+      if (parsed.categoryGuess != null) {
+        final normalized = parsed.categoryGuess!.trim().toLowerCase();
+        for (final c in categories) {
+          if (c.name.toLowerCase() == normalized) {
+            _categoryId = c.id;
+            _categoryChosenByHand = true;
+            break;
+          }
+        }
+      }
+      _source = ExpenseSource.scanned;
+      _ocrRaw = result.rawText;
+      _ocrModel = result.model;
     });
   }
 
@@ -202,7 +288,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
 
     setState(() => _saving = true);
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     final controller = ref.read(expensesProvider.notifier);
 
     final merchant = _merchantController.text.trim();
@@ -222,6 +307,10 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
             latitude: _latitude,
             longitude: _longitude,
             occurredAt: _occurredAt,
+            source: _source,
+            ocrRaw: _ocrRaw,
+            ocrModel: _ocrModel,
+            isBusiness: _isBusiness,
           ),
           receiptSourcePath: _receiptSourcePath,
         );
@@ -240,6 +329,10 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
             latitude: _latitude,
             longitude: _longitude,
             receiptPath: '', // set by the repository once the file is stored
+            source: _source,
+            ocrRaw: _ocrRaw,
+            ocrModel: _ocrModel,
+            isBusiness: _isBusiness,
             createdAt: now,
             updatedAt: now,
           ),
@@ -265,20 +358,17 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       }
 
       navigator.pop();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            _isEditing
-                ? 'Expense updated'
-                : 'Saved · ${Money.format(amount)}',
-          ),
-        ),
+      showPaperSnack(
+        context,
+        message:
+            _isEditing ? 'Expense updated' : 'Saved · ${Money.format(amount)}',
       );
     } on Exception catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      messenger.showSnackBar(
-        SnackBar(content: Text("That didn't save. Try again. ($e)")),
+      showPaperSnack(
+        context,
+        message: "That didn't save. Try again. ($e)",
       );
     }
   }
@@ -298,6 +388,36 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
   Widget build(BuildContext context) {
     final palette = context.thermal;
     final hasReceipt = _receiptSourcePath != null || _isEditing;
+    final presence = ref.watch(apiKeyPresenceProvider);
+    final keysReady = presence.valueOrNull;
+    final canScan = keysReady != null &&
+        keysReady[ApiKeyKind.googleVision] == true &&
+        keysReady[ApiKeyKind.openRouter] == true;
+    final keysLoading = presence.isLoading;
+    final offerScan = !_isEditing &&
+        !_scanChoiceMade &&
+        _receiptSourcePath != null &&
+        (canScan || keysLoading);
+
+    Widget body;
+    if (!hasReceipt) {
+      body = _CaptureStage(
+        busy: _busy,
+        onCamera: () => _capture(ImageSource.camera),
+        onGallery: () => _capture(ImageSource.gallery),
+      );
+    } else if (offerScan && keysLoading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (offerScan && canScan) {
+      body = _ScanChoiceStage(
+        sourcePath: _receiptSourcePath!,
+        scanning: _scanning,
+        onScan: _runScan,
+        onFillMyself: () => setState(() => _scanChoiceMade = true),
+      );
+    } else {
+      body = _buildForm();
+    }
 
     return Scaffold(
       backgroundColor: palette.paper,
@@ -309,11 +429,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
         ),
         title: Text(_isEditing ? 'Edit expense' : 'New expense'),
       ),
-      body: hasReceipt ? _buildForm() : _CaptureStage(
-        busy: _busy,
-        onCamera: () => _capture(ImageSource.camera),
-        onGallery: () => _capture(ImageSource.gallery),
-      ),
+      body: body,
     );
   }
 
@@ -333,7 +449,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
               ),
               const PerforatedRule(),
               const SizedBox(height: Space.lg),
-
               _Block(
                 label: 'WHERE',
                 child: Column(
@@ -363,11 +478,12 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                         Expanded(
                           child: TextField(
                             controller: _locationController,
-                            style:
-                                Type.caption.copyWith(color: palette.faded),
+                            style: Type.caption.copyWith(color: palette.faded),
                             cursorColor: palette.carbon,
                             decoration: InputDecoration(
-                              hintText: 'Finding you…',
+                              hintText: _locationSettled
+                                  ? 'Where was this?'
+                                  : 'Finding you…',
                               hintStyle:
                                   Type.caption.copyWith(color: palette.faded),
                               filled: false,
@@ -385,7 +501,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                   ],
                 ),
               ),
-
               _Block(
                 label: 'WHAT KIND',
                 child: _CategoryChips(
@@ -397,7 +512,16 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                   }),
                 ),
               ),
-
+              _Block(
+                label: 'FOR',
+                child: _BusinessToggle(
+                  value: _isBusiness,
+                  onChanged: (v) => setState(() {
+                    _isBusiness = v;
+                    _keypadOpen = false;
+                  }),
+                ),
+              ),
               _Block(
                 label: 'PAID WITH',
                 child: _AccountChips(
@@ -408,7 +532,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                   }),
                 ),
               ),
-
               _Block(
                 label: 'WHEN',
                 child: InkWell(
@@ -425,7 +548,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                   ),
                 ),
               ),
-
               if (_showNote)
                 _Block(
                   label: 'NOTE',
@@ -458,17 +580,16 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                     label: const Text('Add a note'),
                   ),
                 ),
-
               const SizedBox(height: Space.lg),
               _ReceiptStrip(
                 sourcePath: _receiptSourcePath,
                 existing: widget.existing,
                 onRetake: () => _capture(ImageSource.camera),
+                onChoosePhoto: () => _capture(ImageSource.gallery),
               ),
             ],
           ),
         ),
-
         if (_keypadOpen)
           RegisterKeypad(
             entry: _amount,
@@ -558,6 +679,97 @@ class _CaptureStage extends StatelessWidget {
   }
 }
 
+/// Shown right after a receipt is captured, before any field is filled —
+/// the only moment where an image exists and nothing has been typed yet.
+///
+/// Scanning starts on its own. The common path is: photograph, wait a few
+/// seconds, land on a filled form. "Fill it in myself" is the escape, not
+/// the default.
+class _ScanChoiceStage extends StatefulWidget {
+  const _ScanChoiceStage({
+    required this.sourcePath,
+    required this.scanning,
+    required this.onScan,
+    required this.onFillMyself,
+  });
+
+  final String sourcePath;
+  final bool scanning;
+  final VoidCallback onScan;
+  final VoidCallback onFillMyself;
+
+  @override
+  State<_ScanChoiceStage> createState() => _ScanChoiceStageState();
+}
+
+class _ScanChoiceStageState extends State<_ScanChoiceStage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !widget.scanning) widget.onScan();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+
+    return Padding(
+      padding: const EdgeInsets.all(Space.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: Radii.media,
+              child: Image.file(
+                File(widget.sourcePath),
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          const SizedBox(height: Space.lg),
+          const PerforatedRule(),
+          const SizedBox(height: Space.lg),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: widget.scanning ? null : widget.onScan,
+              child: widget.scanning
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: palette.paper,
+                          ),
+                        ),
+                        const SizedBox(width: Space.sm),
+                        const Text('Reading the receipt…'),
+                      ],
+                    )
+                  : const Text('Scan receipt'),
+            ),
+          ),
+          const SizedBox(height: Space.md),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: widget.scanning ? null : widget.onFillMyself,
+              child: const Text('Fill it in myself'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AmountRow extends StatelessWidget {
   const _AmountRow({
     required this.entry,
@@ -626,6 +838,36 @@ class _Block extends StatelessWidget {
         const PerforatedRule(),
         const SizedBox(height: Space.lg),
       ],
+    );
+  }
+}
+
+class _BusinessToggle extends StatelessWidget {
+  const _BusinessToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.xs),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Business expense',
+                style: Type.item.copyWith(color: palette.print),
+              ),
+            ),
+            Switch(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -732,11 +974,13 @@ class _ReceiptStrip extends ConsumerWidget {
     required this.sourcePath,
     required this.existing,
     required this.onRetake,
+    required this.onChoosePhoto,
   });
 
   final String? sourcePath;
   final Expense? existing;
   final VoidCallback onRetake;
+  final VoidCallback onChoosePhoto;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -786,7 +1030,26 @@ class _ReceiptStrip extends ConsumerWidget {
                 style: Type.eyebrow.copyWith(color: palette.faded),
               ),
               const SizedBox(height: Space.xs),
-              TextButton(onPressed: onRetake, child: const Text('Retake')),
+              TextButton(
+                onPressed: onRetake,
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(vertical: Space.xs),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  alignment: Alignment.centerLeft,
+                ),
+                child: const Text('Retake'),
+              ),
+              TextButton(
+                onPressed: onChoosePhoto,
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(vertical: Space.xs),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  alignment: Alignment.centerLeft,
+                ),
+                child: const Text('Choose a photo'),
+              ),
             ],
           ),
         ),

@@ -69,4 +69,18 @@ class ImageStore {
       await file.delete();
     }
   }
+
+  /// Every receipt photo currently in managed storage. Used by the full-app
+  /// backup so a dump is the database *and* the files it points at.
+  Future<List<File>> listReceipts() async {
+    final dir = Directory(p.join((await _root()).path, _subdir));
+    if (!await dir.exists()) return const [];
+    return [
+      await for (final entity in dir.list())
+        if (entity is File) entity,
+    ];
+  }
+
+  /// Documents directory the relative paths are resolved against.
+  Future<Directory> documentsRoot() => _root();
 }

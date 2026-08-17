@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -30,7 +31,7 @@ class ListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('List'),
+        title: const Text('Groceries'),
         actions: [
           IconButton(
             tooltip: 'Past trips',
@@ -185,19 +186,16 @@ class _DismissibleRow extends ConsumerWidget {
             child: Icon(Icons.delete_outline, color: palette.faded),
           ),
           onDismissed: (_) async {
-            final messenger = ScaffoldMessenger.of(context);
             final controller = ref.read(activeListProvider.notifier);
             final removed = await controller.deleteItem(item);
 
-            messenger.clearSnackBars();
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text('Removed ${removed.nameSnapshot}'),
-                action: SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () => controller.restoreItem(removed),
-                ),
-              ),
+            hidePaperSnacks();
+            if (!context.mounted) return;
+            showPaperSnack(
+              context,
+              message: 'Removed ${removed.nameSnapshot}',
+              actionLabel: 'Undo',
+              onAction: () => controller.restoreItem(removed),
             );
           },
           child: ItemRow(
@@ -246,7 +244,11 @@ class _PrimaryAction extends StatelessWidget {
                     builder: (_) => const PickupScreen(),
                   ),
                 ),
-                child: Text('Start pick-up · ${list.total} items'),
+                child: Text(
+                  list.total == 1
+                      ? 'Start pick-up · 1 item'
+                      : 'Start pick-up · ${list.total} items',
+                ),
               ),
       ),
     );

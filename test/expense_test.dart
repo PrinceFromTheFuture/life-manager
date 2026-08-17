@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
+import 'package:shopping_list/apps/receipts/data/export/expense_exporter.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_activity.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
@@ -212,6 +213,203 @@ void main() {
         DateTime(now.year, now.month + 1),
       );
       expect(total, 5000);
+    });
+
+    test('between() returns a distant month even past the recent() cap',
+        () async {
+      // The main list is scoped by month via between(), not by filtering
+      // recent()'s capped result — so a month far in the past must not
+      // silently come up empty just because it fell outside that cap.
+      final farBack = DateTime(2020, 3, 10);
+
+      await repo.create(
+        draft: draft(amount: 3300).copyWith(occurredAt: farBack),
+        receiptSourcePath: receiptFile('old.jpg').path,
+      );
+
+      final found = await repo.between(
+        DateTime(2020, 3),
+        DateTime(2020, 4),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.amountMinor, 3300);
+    });
+  });
+
+  group('managing categories', () {
+    test('renaming changes the name without changing the id', () async {
+      final groceries =
+          (await repo.categories()).firstWhere((c) => c.name == 'Groceries');
+
+      await repo.renameCategory(groceries.id!, 'Weekly shop');
+
+      final renamed =
+          (await repo.categories()).firstWhere((c) => c.id == groceries.id);
+      expect(renamed.name, 'Weekly shop');
+    });
+
+    test('usage counts the expenses filed under it', () async {
+      final groceries =
+          (await repo.categories()).firstWhere((c) => c.name == 'Groceries');
+      expect(await repo.categoryUsage(groceries.id!), 0);
+
+      await repo.create(
+        draft: draft(categoryId: groceries.id),
+        receiptSourcePath: receiptFile().path,
+      );
+      expect(await repo.categoryUsage(groceries.id!), 1);
+    });
+
+    test('deleting a category used by an expense keeps the expense', () async {
+      final groceries =
+          (await repo.categories()).firstWhere((c) => c.name == 'Groceries');
+      final saved = await repo.create(
+        draft: draft(categoryId: groceries.id),
+        receiptSourcePath: receiptFile().path,
+      );
+
+      await repo.deleteCategory(groceries.id!);
+
+      // ON DELETE SET NULL: the expense survives, just uncategorised — the
+      // whole reason deleting a lookup is safe rather than destructive.
+      final stillThere = await repo.byId(saved.id!);
+      expect(stillThere, isNotNull);
+      expect(stillThere!.categoryId, isNull);
+    });
+
+    test('adding a category is idempotent by name', () async {
+      final before = (await repo.categories()).length;
+      await repo.addCategory('Custom one');
+      await repo.addCategory('Custom one');
+      expect((await repo.categories()).length, before + 1);
+    });
+
+    test('reordering persists the new sort order', () async {
+      final categories = await repo.categories();
+      final reversed = categories.reversed.map((c) => c.id!).toList();
+
+      await repo.reorderCategories(reversed);
+
+      final after = await repo.categories();
+      expect(after.map((c) => c.id).toList(), reversed);
+    });
+  });
+
+  group('managing accounts', () {
+    test('rename, usage and delete mirror categories', () async {
+      final cash = (await repo.accounts()).firstWhere((a) => a.name == 'Cash');
+
+      await repo.renameAccount(cash.id!, 'Wallet cash');
+      expect(
+        (await repo.accounts()).firstWhere((a) => a.id == cash.id).name,
+        'Wallet cash',
+      );
+
+      final saved = await repo.create(
+        draft: draft().copyWith(accountId: cash.id),
+        receiptSourcePath: receiptFile().path,
+      );
+      expect(await repo.accountUsage(cash.id!), 1);
+
+      await repo.deleteAccount(cash.id!);
+      expect((await repo.byId(saved.id!))!.accountId, isNull);
+    });
+  });
+
+  group('export', () {
+    test('names categories rather than leaving ids', () async {
+      final groceries =
+          (await repo.categories()).firstWhere((c) => c.name == 'Groceries');
+      await repo.create(
+        draft: draft(categoryId: groceries.id),
+        receiptSourcePath: receiptFile().path,
+      );
+
+      final export = await ExpenseExporter(repo).buildMonth(DateTime.now());
+      expect(export.fileName, contains('receipts_'));
+      expect(export.count, 1);
+      expect(export.json, contains('"category": "Groceries"'));
+      expect(export.json, contains('"merchant": "Rami Levy"'));
+      expect(export.json, isNot(contains('receiptPath')));
+    });
+
+    test('an empty month is an empty export, not a missing file', () async {
+      final export = await ExpenseExporter(repo).buildMonth(DateTime(2020, 1));
+      expect(export.count, 0);
+      expect(export.json, contains('"count": 0'));
+      expect(export.json, contains('"expenses": []'));
+    });
+
+    test('can export business, personal, or both', () async {
+      await repo.create(
+        draft: draft(merchant: 'Office Depot').copyWith(isBusiness: true),
+        receiptSourcePath: receiptFile('a.jpg').path,
+      );
+      await repo.create(
+        draft: draft(merchant: 'Rami Levy'),
+        receiptSourcePath: receiptFile('b.jpg').path,
+      );
+
+      final both = await ExpenseExporter(repo).buildMonth(DateTime.now());
+      expect(both.count, 2);
+      expect(both.json, contains('"scope": "both"'));
+      expect(both.json, contains('"business": true'));
+      expect(both.json, contains('"business": false'));
+
+      final business = await ExpenseExporter(repo).buildMonth(
+        DateTime.now(),
+        scope: ExportScope.business,
+      );
+      expect(business.count, 1);
+      expect(business.fileName, contains('_business'));
+      expect(business.json, contains('"scope": "business"'));
+      expect(business.json, contains('Office Depot'));
+      expect(business.json, isNot(contains('Rami Levy')));
+
+      final personal = await ExpenseExporter(repo).buildMonth(
+        DateTime.now(),
+        scope: ExportScope.personal,
+      );
+      expect(personal.count, 1);
+      expect(personal.fileName, contains('_personal'));
+      expect(personal.json, contains('Rami Levy'));
+      expect(personal.json, isNot(contains('Office Depot')));
+    });
+  });
+
+  group('business flag', () {
+    test('defaults to personal and persists when set', () async {
+      final personal = await repo.create(
+        draft: draft(),
+        receiptSourcePath: receiptFile('a.jpg').path,
+      );
+      expect(personal.isBusiness, isFalse);
+
+      final business = await repo.create(
+        draft: draft().copyWith(isBusiness: true),
+        receiptSourcePath: receiptFile('b.jpg').path,
+      );
+      expect((await repo.byId(business.id!))!.isBusiness, isTrue);
+    });
+
+    test('month totals split business from personal', () async {
+      final now = DateTime.now();
+      await repo.create(
+        draft: draft(amount: 10000).copyWith(isBusiness: true),
+        receiptSourcePath: receiptFile('a.jpg').path,
+      );
+      await repo.create(
+        draft: draft(amount: 2500),
+        receiptSourcePath: receiptFile('b.jpg').path,
+      );
+
+      final months = await repo.kindTotalsByMonth();
+      expect(months, isNotEmpty);
+      final thisMonth = months.firstWhere(
+        (m) => m.month.year == now.year && m.month.month == now.month,
+      );
+      expect(thisMonth.businessMinor, 10000);
+      expect(thisMonth.personalMinor, 2500);
     });
   });
 }

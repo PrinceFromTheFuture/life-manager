@@ -21,6 +21,15 @@ dependencies:
   # Expenses default to where you are standing when you log them.
   geolocator: ^13.0.0
   geocoding: ^5.0.0
+  # API keys live in the Android Keystore, never in the repo or the APK.
+  flutter_secure_storage: ^11.0.0
+  # Vision OCR and OpenRouter calls for receipt scanning.
+  http: ^1.2.2
+  # Month export goes through the system share sheet, not a path on disk.
+  share_plus: ^13.3.0
+  # Opens a saved place in the Google Maps app.
+  url_launcher: ^6.3.2
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:

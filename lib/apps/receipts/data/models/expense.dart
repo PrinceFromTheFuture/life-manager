@@ -25,6 +25,7 @@ class Expense {
     this.source = ExpenseSource.manual,
     this.ocrRaw,
     this.ocrModel,
+    this.isBusiness = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -63,6 +64,11 @@ class Expense {
   final String? ocrRaw;
 
   final String? ocrModel;
+
+  /// Claimed as a business cost. Off is personal — the default, so a slip
+  /// is never business unless someone said so.
+  final bool isBusiness;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -97,10 +103,9 @@ class Expense {
             : ExpenseSource.manual,
         ocrRaw: m['ocr_raw'] as String?,
         ocrModel: m['ocr_model'] as String?,
-        createdAt:
-            DateTime.fromMillisecondsSinceEpoch(m['created_at']! as int),
-        updatedAt:
-            DateTime.fromMillisecondsSinceEpoch(m['updated_at']! as int),
+        isBusiness: (m['is_business'] as int? ?? 0) == 1,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at']! as int),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(m['updated_at']! as int),
       );
 
   Map<String, Object?> toMap() => {
@@ -119,6 +124,7 @@ class Expense {
         'source': source.name,
         'ocr_raw': ocrRaw,
         'ocr_model': ocrModel,
+        'is_business': isBusiness ? 1 : 0,
         'created_at': createdAt.millisecondsSinceEpoch,
         'updated_at': updatedAt.millisecondsSinceEpoch,
       };
@@ -138,6 +144,7 @@ class Expense {
     ExpenseSource? source,
     String? ocrRaw,
     String? ocrModel,
+    bool? isBusiness,
     DateTime? updatedAt,
   }) =>
       Expense(
@@ -156,6 +163,7 @@ class Expense {
         source: source ?? this.source,
         ocrRaw: ocrRaw ?? this.ocrRaw,
         ocrModel: ocrModel ?? this.ocrModel,
+        isBusiness: isBusiness ?? this.isBusiness,
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now(),
       );

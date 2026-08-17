@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/app.dart';
 import 'package:shopping_list/apps/groceries/groceries_app.dart';
+import 'package:shopping_list/apps/gym/gym_app.dart';
 import 'package:shopping_list/apps/receipts/receipts_app.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/app/registry.dart';
@@ -18,6 +19,7 @@ import 'package:shopping_list/core/providers.dart';
 const List<MiniApp> installedApps = [
   GroceriesApp(),
   ReceiptsApp(),
+  GymApp(),
 ];
 
 Future<void> main() async {

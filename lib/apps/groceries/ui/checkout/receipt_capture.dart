@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
@@ -28,7 +29,6 @@ class _ReceiptCaptureState extends ConsumerState<ReceiptCapture> {
 
   Future<void> _pick(ImageSource source) async {
     setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
 
     try {
       final picked = await ImagePicker().pickImage(
@@ -40,15 +40,13 @@ class _ReceiptCaptureState extends ConsumerState<ReceiptCapture> {
       await ref.read(activeListProvider.notifier).attachReceipt(picked.path);
     } on Exception catch (e) {
       // State what happened and what to do about it. No apology, no vagueness.
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            source == ImageSource.camera
-                ? "Couldn't open the camera. Check camera access in Settings, "
-                    'or choose a photo instead. ($e)'
-                : "Couldn't load that photo. Try another one. ($e)",
-          ),
-        ),
+      if (!mounted) return;
+      showPaperSnack(
+        context,
+        message: source == ImageSource.camera
+            ? "Couldn't open the camera. Check camera access in Settings, "
+                'or choose a photo instead. ($e)'
+            : "Couldn't load that photo. Try another one. ($e)",
       );
     } finally {
       if (mounted) setState(() => _busy = false);

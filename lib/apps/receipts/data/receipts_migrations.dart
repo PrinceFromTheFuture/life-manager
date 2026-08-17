@@ -94,5 +94,15 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         ''',
       ],
     ),
+    Migration(
+      version: 2,
+      statements: [
+        // Existing slips stay personal. The flag is opt-in on each expense,
+        // not inferred from category — Fuel can be either.
+        '''
+        ALTER TABLE expenses ADD COLUMN is_business INTEGER NOT NULL DEFAULT 0
+        ''',
+      ],
+    ),
   ],
 );

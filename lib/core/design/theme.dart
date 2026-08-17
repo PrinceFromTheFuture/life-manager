@@ -153,7 +153,8 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       titleTextStyle: Type.display.copyWith(fontSize: 22, color: p.print),
     ),
 
-    dividerTheme: DividerThemeData(color: p.perforation, thickness: 1, space: 1),
+    dividerTheme:
+        DividerThemeData(color: p.perforation, thickness: 1, space: 1),
 
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -208,6 +209,8 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       ),
     ),
 
+    // Colours for [showPaperSnack], which drops in under the status bar.
+    // Material's own SnackBar stays at the bottom; we don't use it.
     snackBarTheme: SnackBarThemeData(
       backgroundColor: p.print,
       contentTextStyle: Type.body.copyWith(color: p.paper),
@@ -232,6 +235,18 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       iconColor: p.faded,
       textColor: p.print,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+    ),
+
+    // Controls are pilled; paper is not. The hub FAB is a control.
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: p.print,
+      foregroundColor: p.paper,
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      disabledElevation: 0,
+      highlightElevation: 0,
+      shape: const RoundedRectangleBorder(borderRadius: Radii.control),
     ),
   );
 }

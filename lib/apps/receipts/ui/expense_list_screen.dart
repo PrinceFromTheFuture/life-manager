@@ -2,41 +2,147 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:shopping_list/apps/receipts/data/export/expense_exporter.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
+import 'package:shopping_list/apps/receipts/ui/receipts_lists_screen.dart';
+import 'package:shopping_list/apps/receipts/ui/stats_screen.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
-/// Everything you've spent, newest first.
+/// Everything you've spent this month, newest first.
+///
+/// Scoped to a single month rather than "everything ever" — the month you're
+/// looking at is the month you're managing, and the arrows in the header let
+/// you step to any other one without leaving the screen.
 class ExpenseListScreen extends ConsumerWidget {
   const ExpenseListScreen({super.key});
+
+  Future<void> _exportMonth(BuildContext context, WidgetRef ref) async {
+    final scope = await _pickExportScope(context);
+    if (scope == null) return;
+    try {
+      final exporter = ExpenseExporter(ref.read(expenseRepositoryProvider));
+      final export = await exporter.buildMonth(
+        ref.read(selectedMonthProvider),
+        scope: scope,
+      );
+      if (export.count == 0) {
+        if (!context.mounted) return;
+        showPaperSnack(
+          context,
+          message: scope == ExportScope.both
+              ? 'Nothing to export this month.'
+              : 'Nothing ${scope == ExportScope.business ? 'business' : 'personal'} to export this month.',
+        );
+        return;
+      }
+      await exporter.share(export);
+    } on Exception catch (e) {
+      if (!context.mounted) return;
+      showPaperSnack(context, message: 'Could not export: $e');
+    }
+  }
+
+  Future<ExportScope?> _pickExportScope(BuildContext context) {
+    final palette = context.thermal;
+    return showDialog<ExportScope>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: palette.paper,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        titleTextStyle:
+            Type.display.copyWith(fontSize: 20, color: palette.print),
+        contentTextStyle: Type.body.copyWith(color: palette.print),
+        title: const Text('Export this month'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final scope in ExportScope.values)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(scope),
+                style: TextButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  foregroundColor: palette.print,
+                ),
+                child: Text(scope.label),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
-    final expenses = ref.watch(expensesProvider);
+    final expenses = ref.watch(monthExpensesProvider);
 
     return Scaffold(
       backgroundColor: palette.paper,
-      appBar: AppBar(title: const Text('Receipts')),
-      body: expenses.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(Space.lg),
-            child: Text(
-              '$e',
-              style: Type.caption.copyWith(color: palette.faded),
+      appBar: AppBar(
+        title: const Text('Receipts'),
+        actions: [
+          IconButton(
+            tooltip: 'Export month',
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => _exportMonth(context, ref),
+          ),
+          IconButton(
+            tooltip: 'Statistics',
+            icon: const Icon(Icons.bar_chart_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const StatsScreen()),
             ),
           ),
-        ),
-        data: (items) => items.isEmpty
-            ? const _NoExpenses()
-            : _ExpenseRoll(expenses: items),
+          IconButton(
+            tooltip: 'Categories and accounts',
+            icon: const Icon(Icons.tune),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ReceiptsListsScreen(),
+              ),
+            ),
+          ),
+          const SizedBox(width: Space.sm),
+        ],
+      ),
+      body: Column(
+        children: [
+          const _MonthSelector(),
+          const PerforatedRule(),
+          Expanded(
+            child: expenses.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(Space.lg),
+                  child: Text(
+                    '$e',
+                    style: Type.caption.copyWith(color: palette.faded),
+                  ),
+                ),
+              ),
+              data: (items) => items.isEmpty
+                  ? const _NoExpenses()
+                  : _ExpenseRoll(expenses: items),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: Container(
         color: palette.paper,
@@ -60,6 +166,89 @@ class ExpenseListScreen extends ConsumerWidget {
   }
 }
 
+/// The month total plus the two arrows that step between months.
+///
+/// Doubles as the "which month am I looking at" indicator — there is no
+/// separate header for that, because this already says it.
+class _MonthSelector extends ConsumerWidget {
+  const _MonthSelector();
+
+  Future<void> _jumpToMonth(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime month,
+  ) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: month,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: 'Which month?',
+      useRootNavigator: false,
+    );
+    if (picked == null) return;
+    ref.read(selectedMonthProvider.notifier).state =
+        DateTime(picked.year, picked.month);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final month = ref.watch(selectedMonthProvider);
+    final total = ref.watch(selectedMonthTotalProvider);
+    final now = DateTime.now();
+    final isCurrentMonth = month.year == now.year && month.month == now.month;
+
+    return Padding(
+      padding:
+          const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            tooltip: 'Previous month',
+            onPressed: () => ref.read(selectedMonthProvider.notifier).state =
+                DateTime(month.year, month.month - 1),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () => _jumpToMonth(context, ref, month),
+              child: Column(
+                children: [
+                  Text(
+                    DateFormat('MMMM yyyy').format(month).toUpperCase(),
+                    style: Type.eyebrow.copyWith(color: palette.faded),
+                  ),
+                  const SizedBox(height: Space.xs),
+                  Text(
+                    total.maybeWhen(data: Money.format, orElse: () => '—'),
+                    style: Type.totalDisplay.copyWith(
+                      color: palette.print,
+                      fontSize: 32,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            tooltip: 'Next month',
+            // A future month is never useful — nothing has been logged there
+            // yet, so stepping past "now" would just show an empty screen.
+            onPressed: isCurrentMonth
+                ? null
+                : () => ref.read(selectedMonthProvider.notifier).state =
+                    DateTime(month.year, month.month + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ExpenseRoll extends ConsumerWidget {
   const _ExpenseRoll({required this.expenses});
 
@@ -72,7 +261,6 @@ class _ExpenseRoll extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: Space.xxl),
       children: [
-        const _MonthTotal(),
         for (final day in days) ...[
           const SizedBox(height: Space.lg),
           const TearEdge(),
@@ -119,38 +307,6 @@ class _ExpenseRoll extends ConsumerWidget {
   }
 }
 
-/// The number this whole app exists to surface.
-class _MonthTotal extends ConsumerWidget {
-  const _MonthTotal();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
-    final total = ref.watch(monthToDateProvider);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            DateFormat('MMMM').format(DateTime.now()).toUpperCase(),
-            style: Type.eyebrow.copyWith(color: palette.faded),
-          ),
-          const SizedBox(height: Space.sm),
-          Text(
-            total.maybeWhen(
-              data: Money.format,
-              orElse: () => '—',
-            ),
-            style: Type.totalDisplay.copyWith(color: palette.print),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ExpenseRow extends ConsumerWidget {
   const _ExpenseRow({required this.expense});
 
@@ -171,37 +327,7 @@ class _ExpenseRow extends ConsumerWidget {
       ),
       // Unlike a list item, this deletes a photo too — so it asks first rather
       // than offering an undo it could not honour.
-      confirmDismiss: (_) => showDialog<bool>(
-        context: context,
-        // Keeps the dialog inside this app's ink; the root navigator is above
-        // the InkScope.
-        useRootNavigator: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: palette.paper,
-          surfaceTintColor: Colors.transparent,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          titleTextStyle:
-              Type.display.copyWith(fontSize: 20, color: palette.print),
-          contentTextStyle: Type.body.copyWith(color: palette.print),
-          title: const Text('Delete this expense?'),
-          content: const Text(
-            'The amount and the receipt photo are deleted for good.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Keep'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
-        ),
-      ),
+      confirmDismiss: (_) => confirmDeleteExpense(context),
       onDismissed: (_) =>
           ref.read(expensesProvider.notifier).remove(expense.id!),
       child: InkWell(
@@ -228,10 +354,10 @@ class _ExpenseRow extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if ((expense.locationLabel ?? '').isNotEmpty) ...[
+                    if (_subtitle(expense) != null) ...[
                       const SizedBox(height: 2),
                       Text(
-                        expense.locationLabel!,
+                        _subtitle(expense)!,
                         style: Type.caption.copyWith(color: palette.faded),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -250,6 +376,14 @@ class _ExpenseRow extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static String? _subtitle(Expense expense) {
+    final place = (expense.locationLabel ?? '').trim();
+    if (expense.isBusiness && place.isNotEmpty) return 'Business · $place';
+    if (expense.isBusiness) return 'Business';
+    if (place.isNotEmpty) return place;
+    return null;
   }
 }
 
@@ -270,7 +404,7 @@ class _NoExpenses extends StatelessWidget {
             const PerforatedRule(),
             const SizedBox(height: Space.lg),
             Text(
-              'No expenses yet.',
+              'No expenses this month.',
               style: Type.display.copyWith(color: palette.print, fontSize: 28),
             ),
             const SizedBox(height: Space.md),
