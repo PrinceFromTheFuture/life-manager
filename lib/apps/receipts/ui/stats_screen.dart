@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:shopping_list/apps/receipts/data/models/account.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
-import 'package:shopping_list/apps/receipts/data/models/month_kind_totals.dart';
+import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
+import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
+import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
+import 'package:shopping_list/apps/receipts/ui/stats_charts.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -13,14 +17,14 @@ import 'package:shopping_list/core/util/money.dart';
 
 /// Where the money went this month.
 ///
-/// Two views, both built without a chart package: a sorted breakdown by
-/// category, and a day-by-day column for the month. Both use exactly one
-/// colour — the app's ink — because every bar is already labelled with the
-/// category name or the date; colour would carry no identity a categorical
-/// palette could add, and a second hue with no job to do is decoration, not
-/// information.
-class StatsScreen extends ConsumerWidget {
-  const StatsScreen({super.key});
+/// Built without a chart package: ink wells, a till tape of shops, and a
+/// day-by-day column. One ink — the labels carry identity, colour does not.
+///
+/// A section of the shell rather than a pushed screen: statistics answer a
+/// question about the same month the slips list is showing, so making you
+/// navigate away from it was always slightly wrong.
+class StatsSection extends ConsumerWidget {
+  const StatsSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,23 +32,24 @@ class StatsScreen extends ConsumerWidget {
     final month = ref.watch(selectedMonthProvider);
     final expensesAsync = ref.watch(monthExpensesProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
+    final accountsAsync = ref.watch(accountsProvider);
 
-    return Scaffold(
-      backgroundColor: palette.paper,
-      appBar: AppBar(title: const Text('Statistics')),
-      body: expensesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
-        ),
-        data: (expenses) => categoriesAsync.maybeWhen(
-          data: (categories) => _StatsBody(
+    return expensesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
+      ),
+      data: (expenses) => categoriesAsync.maybeWhen(
+        data: (categories) => accountsAsync.maybeWhen(
+          data: (accounts) => _StatsBody(
             month: month,
             expenses: expenses,
             categories: categories,
+            accounts: accounts,
           ),
           orElse: () => const Center(child: CircularProgressIndicator()),
         ),
+        orElse: () => const Center(child: CircularProgressIndicator()),
       ),
     );
   }
@@ -55,51 +60,58 @@ class _StatsBody extends ConsumerWidget {
     required this.month,
     required this.expenses,
     required this.categories,
+    required this.accounts,
   });
 
   final DateTime month;
   final List<Expense> expenses;
   final List<ExpenseCategory> categories;
+  final List<Account> accounts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
+    final lens = ref.watch(receiptsLensProvider);
     final previousTotal = ref.watch(previousMonthTotalProvider);
+    final lastMonthToDate = ref.watch(lastMonthToDateProvider);
 
     if (expenses.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const PerforatedRule(),
-              const SizedBox(height: Space.lg),
-              Text(
-                'Nothing to show yet.',
-                style:
-                    Type.display.copyWith(color: palette.print, fontSize: 26),
-              ),
-              const SizedBox(height: Space.md),
-              Text(
-                'Statistics fill in once you have logged an expense this '
-                'month.',
-                style: Type.body.copyWith(color: palette.faded),
-              ),
-            ],
-          ),
-        ),
-      );
+      return const _EmptyStats();
     }
 
-    final total = expenses.fold<int>(0, (sum, e) => sum + e.amountMinor);
+    final lenses = [
+      ReceiptsLens.all,
+      ReceiptsLens.toClaim,
+      ReceiptsLens.personal,
+      ReceiptsLens.unfiled,
+      if (ReceiptsView.largeCutoff(expenses) != null) ReceiptsLens.large,
+    ];
+    final shown = ReceiptsView.apply(
+      expenses,
+      lens: lens,
+      sort: ReceiptsSort.newest,
+    );
+    final fullTotal = ReceiptsView.totalOf(expenses);
+    final total = ReceiptsView.totalOf(shown);
     final categoryNames = {for (final c in categories) c.id: c.name};
+    final accountNames = {for (final a in accounts) a.id: a.label};
+    final merchants = ReceiptsView.merchantTape(shown);
+    final weeks = ReceiptsView.statementWeeks(shown, month);
+    final days = ReceiptsView.dailyKind(shown, month);
+    final weekend = ReceiptsView.weekendSpend(shown);
 
     return ListView(
       padding:
           const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.lg, Space.xxl),
       children: [
+        LedgerPlateRow<ReceiptsLens>(
+          values: lenses,
+          selected: lens,
+          labelOf: (l) => l.label,
+          onSelected: (l) =>
+              ref.read(receiptsLensProvider.notifier).state = l,
+        ),
+        const SizedBox(height: Space.lg),
         Text(
           DateFormat('MMMM yyyy').format(month).toUpperCase(),
           style: Type.eyebrow.copyWith(color: palette.faded),
@@ -109,71 +121,255 @@ class _StatsBody extends ConsumerWidget {
           Money.format(total),
           style: Type.totalDisplay.copyWith(color: palette.print),
         ),
+        if (lens != ReceiptsLens.all && total != fullTotal)
+          Padding(
+            padding: const EdgeInsets.only(top: Space.xs),
+            child: Text(
+              'of ${Money.format(fullTotal)} this month',
+              style: Type.caption.copyWith(color: palette.faded),
+            ),
+          ),
         previousTotal.maybeWhen(
           data: (previous) {
-            final delta = _DeltaStat.compute(total, previous);
+            final delta = _monthDelta(total, previous, lens);
             if (delta == null) return const SizedBox.shrink();
             return Padding(
               padding: const EdgeInsets.only(top: Space.xs),
               child: Text(
-                delta.label,
+                delta,
                 style: Type.caption.copyWith(color: palette.faded),
               ),
             );
           },
           orElse: () => const SizedBox.shrink(),
         ),
-        const SizedBox(height: Space.lg),
-        const PerforatedRule(),
-        const SizedBox(height: Space.xl),
-        Text('BY KIND', style: Type.eyebrow.copyWith(color: palette.faded)),
-        const SizedBox(height: Space.lg),
-        _KindBreakdown(expenses: expenses, total: total),
-        const SizedBox(height: Space.xl),
-        const PerforatedRule(),
-        const SizedBox(height: Space.xl),
-        Text('BY CATEGORY', style: Type.eyebrow.copyWith(color: palette.faded)),
-        const SizedBox(height: Space.lg),
-        _CategoryBreakdown(
-          expenses: expenses,
-          categoryNames: categoryNames,
-          total: total,
+        lastMonthToDate.maybeWhen(
+          data: (prior) {
+            final pace = ReceiptsView.pace(
+              month: month,
+              thisMonth: shown,
+              lastMonthToDate: prior,
+            );
+            final caption = _paceCaption(pace, lens);
+            if (caption == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: Space.xs),
+              child: Text(
+                caption,
+                style: Type.caption.copyWith(color: palette.carbon),
+              ),
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
         ),
-        const SizedBox(height: Space.xl),
-        const PerforatedRule(),
-        const SizedBox(height: Space.xl),
-        Text('BY MONTH', style: Type.eyebrow.copyWith(color: palette.faded)),
-        const SizedBox(height: Space.lg),
-        const _MonthKindHistory(),
-        const SizedBox(height: Space.xl),
-        const PerforatedRule(),
-        const SizedBox(height: Space.xl),
-        Text('BY DAY', style: Type.eyebrow.copyWith(color: palette.faded)),
-        const SizedBox(height: Space.lg),
-        _DailySpend(month: month, expenses: expenses),
+        if (shown.isEmpty) ...[
+          const SizedBox(height: Space.xl),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text(
+            lens.empty,
+            style: Type.body.copyWith(color: palette.faded),
+          ),
+        ] else ...[
+          const SizedBox(height: Space.lg),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text('BY KIND', style: Type.eyebrow.copyWith(color: palette.faded)),
+          const SizedBox(height: Space.lg),
+          _KindBreakdown(expenses: shown, total: total),
+          const SizedBox(height: Space.xl),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text(
+            'THE REGISTER',
+            style: Type.eyebrow.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.sm),
+          Text(
+            'Twelve months, claimed ink on top.',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.lg),
+          const _MonthRegisterSection(),
+          const SizedBox(height: Space.xl),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text(
+            'STATEMENT WEEKS',
+            style: Type.eyebrow.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.sm),
+          Text(
+            'Days 1–7, 8–14, 15–21, 22–28, then the tail.',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.lg),
+          WeekWells(weeks: weeks),
+          const SizedBox(height: Space.xl),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text(
+            'THE TAPE',
+            style: Type.eyebrow.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.sm),
+          Text(
+            'Who took the month.',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.lg),
+          _MerchantTape(merchants: merchants, total: total),
+          const SizedBox(height: Space.xl),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text(
+            'BY CATEGORY',
+            style: Type.eyebrow.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.lg),
+          _CategoryBreakdown(
+            expenses: shown,
+            categoryNames: categoryNames,
+          ),
+          if (_hasPaidWith(shown)) ...[
+            const SizedBox(height: Space.xl),
+            const PerforatedRule(),
+            const SizedBox(height: Space.xl),
+            Text(
+              'PAID WITH',
+              style: Type.eyebrow.copyWith(color: palette.faded),
+            ),
+            const SizedBox(height: Space.lg),
+            _PaidWithBreakdown(
+              expenses: shown,
+              accountNames: accountNames,
+            ),
+          ],
+          const _CommittedCycles(),
+          const SizedBox(height: Space.xl),
+          const PerforatedRule(),
+          const SizedBox(height: Space.xl),
+          Text('BY DAY', style: Type.eyebrow.copyWith(color: palette.faded)),
+          const SizedBox(height: Space.sm),
+          Text(
+            weekend > 0 && total > 0
+                ? 'Friday and Saturday took ${((weekend / total) * 100).round()}% · personal underneath, business on top'
+                : 'Personal underneath, business on top.',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.lg),
+          StackedDailySpend(
+            month: month,
+            days: days,
+            expenses: shown,
+            onOpenExpense: (expense) {
+              if (expense.id == null) return;
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      ExpenseDetailScreen(expenseId: expense.id!),
+                ),
+              );
+            },
+          ),
+        ],
       ],
+    );
+  }
+
+  static bool _hasPaidWith(List<Expense> expenses) =>
+      expenses.any((e) => e.paymentMethodId != null || e.accountId != null);
+
+  static String? _monthDelta(int current, int previous, ReceiptsLens lens) {
+    if (previous == 0 || lens != ReceiptsLens.all) return null;
+    final change = ((current - previous) / previous * 100).round();
+    if (change == 0) return 'Same as last month';
+    final direction = change > 0 ? 'up' : 'down';
+    return '${change.abs()}% $direction on last month';
+  }
+
+  static String? _paceCaption(MonthPace pace, ReceiptsLens lens) {
+    if (pace.monthComplete) return null;
+    if (lens != ReceiptsLens.all) return null;
+    final parts = <String>[
+      'Day ${pace.day} of ${pace.daysInMonth}',
+    ];
+    if (pace.lastMonthToDate > 0) {
+      final d = pace.deltaToDate;
+      if (d == 0) {
+        parts.add('even with last month by now');
+      } else if (d > 0) {
+        parts.add('${Money.format(d)} ahead of last month by now');
+      } else {
+        parts.add('${Money.format(-d)} behind last month by now');
+      }
+    }
+    parts.add('on course for ${Money.format(pace.projected)}');
+    return parts.join(' · ');
+  }
+}
+
+class _EmptyStats extends StatelessWidget {
+  const _EmptyStats();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PerforatedRule(),
+            const SizedBox(height: Space.lg),
+            Text(
+              'Nothing to show yet.',
+              style: Type.display.copyWith(color: palette.print, fontSize: 26),
+            ),
+            const SizedBox(height: Space.md),
+            Text(
+              'Statistics fill in once you have logged an expense this month.',
+              style: Type.body.copyWith(color: palette.faded),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-/// The percentage move against last month, in the interface's plain voice —
-/// never shown when there is nothing to compare against.
-class _DeltaStat {
-  const _DeltaStat({required this.label});
+class _MonthRegisterSection extends ConsumerWidget {
+  const _MonthRegisterSection();
 
-  final String label;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final month = ref.watch(selectedMonthProvider);
+    final history = ref.watch(kindTotalsByMonthProvider);
 
-  static _DeltaStat? compute(int current, int previous) {
-    if (previous == 0) return null;
-    final change = ((current - previous) / previous * 100).round();
-    if (change == 0) return const _DeltaStat(label: 'Same as last month');
-    final direction = change > 0 ? 'up' : 'down';
-    return _DeltaStat(label: '${change.abs()}% $direction on last month');
+    return history.maybeWhen(
+      data: (months) {
+        final filled = ReceiptsView.registerMonths(months);
+        if (filled.every((m) => m.totalMinor == 0)) {
+          return Text(
+            'No months to compare yet.',
+            style: Type.caption.copyWith(color: palette.faded),
+          );
+        }
+        return MonthRegister(
+          months: filled,
+          selected: month,
+          onSelect: (picked) =>
+              ref.read(selectedMonthProvider.notifier).state = picked,
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
   }
 }
 
-/// Business vs personal for the month on screen. Two bars, same ink — the
-/// labels carry the distinction, not a second colour.
 class _KindBreakdown extends StatelessWidget {
   const _KindBreakdown({required this.expenses, required this.total});
 
@@ -198,23 +394,23 @@ class _KindBreakdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CategoryRow(
-          label: 'Business',
+        InkRun(
+          label: 'To claim',
           amountMinor: business,
           fraction: business / max,
           ink: palette.carbon,
         ),
         const SizedBox(height: Space.md),
-        _CategoryRow(
+        InkRun(
           label: 'Personal',
           amountMinor: personal,
           fraction: personal / max,
-          ink: palette.carbon.withValues(alpha: 0.55),
+          ink: palette.carbon.withValues(alpha: 0.45),
         ),
         if (total > 0 && business > 0) ...[
           const SizedBox(height: Space.sm),
           Text(
-            '${((business / total) * 100).round()}% of this month is business',
+            '${((business / total) * 100).round()}% of this view is to claim',
             style: Type.caption.copyWith(color: palette.faded),
           ),
         ],
@@ -223,125 +419,32 @@ class _KindBreakdown extends StatelessWidget {
   }
 }
 
-/// Last twelve months of business vs personal, so a claimed cost is visible
-/// without paging the list back one month at a time.
-class _MonthKindHistory extends ConsumerWidget {
-  const _MonthKindHistory();
+class _MerchantTape extends StatelessWidget {
+  const _MerchantTape({required this.merchants, required this.total});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
-    final history = ref.watch(kindTotalsByMonthProvider);
-
-    return history.maybeWhen(
-      data: (months) {
-        if (months.isEmpty) {
-          return Text(
-            'No months to compare yet.',
-            style: Type.caption.copyWith(color: palette.faded),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var i = 0; i < months.length; i++) ...[
-              _MonthKindRow(totals: months[i]),
-              if (i != months.length - 1) const SizedBox(height: Space.lg),
-            ],
-          ],
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _MonthKindRow extends StatelessWidget {
-  const _MonthKindRow({required this.totals});
-
-  final MonthKindTotals totals;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          DateFormat('MMMM yyyy').format(totals.month).toUpperCase(),
-          style: Type.caption.copyWith(color: palette.faded),
-        ),
-        const SizedBox(height: Space.xs),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Business',
-                style: Type.item.copyWith(color: palette.print),
-              ),
-            ),
-            Text(
-              Money.format(totals.businessMinor),
-              style: Type.monoBold.copyWith(color: palette.print),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Personal',
-                style: Type.caption.copyWith(color: palette.faded),
-              ),
-            ),
-            Text(
-              Money.format(totals.personalMinor),
-              style: Type.mono.copyWith(color: palette.faded),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Sorted horizontal bars, one per category, each carrying its own label and
-/// amount — the label *is* the identity encoding, so every bar shares the
-/// app's single ink rather than a categorical palette that would have
-/// nothing left to distinguish.
-class _CategoryBreakdown extends StatelessWidget {
-  const _CategoryBreakdown({
-    required this.expenses,
-    required this.categoryNames,
-    required this.total,
-  });
-
-  final List<Expense> expenses;
-  final Map<int?, String> categoryNames;
+  final List<MerchantTotal> merchants;
   final int total;
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final totals = <int?, int>{};
-    for (final e in expenses) {
-      totals[e.categoryId] = (totals[e.categoryId] ?? 0) + e.amountMinor;
-    }
-    final sorted = totals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final max = sorted.first.value;
+    if (merchants.isEmpty) return const SizedBox.shrink();
+    final top = merchants.take(8).toList();
+    final max = top.first.amountMinor;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final entry in sorted) ...[
-          _CategoryRow(
-            label: categoryNames[entry.key] ?? 'Uncategorised',
-            amountMinor: entry.value,
-            fraction: entry.value / max,
-            ink: palette.carbon,
+        for (final row in top) ...[
+          InkRun(
+            label: row.name,
+            amountMinor: row.amountMinor,
+            fraction: row.amountMinor / max,
+            detail: row.count == 1
+                ? (total > 0
+                    ? '${((row.amountMinor / total) * 100).round()}% of this view'
+                    : null)
+                : '${row.count} slips'
+                    '${total > 0 ? ' · ${((row.amountMinor / total) * 100).round()}%' : ''}',
           ),
           const SizedBox(height: Space.md),
         ],
@@ -350,182 +453,140 @@ class _CategoryBreakdown extends StatelessWidget {
   }
 }
 
-class _CategoryRow extends StatelessWidget {
-  const _CategoryRow({
-    required this.label,
-    required this.amountMinor,
-    required this.fraction,
-    required this.ink,
+class _CategoryBreakdown extends StatelessWidget {
+  const _CategoryBreakdown({
+    required this.expenses,
+    required this.categoryNames,
   });
 
-  final String label;
-  final int amountMinor;
-  final double fraction;
-  final Color ink;
+  final List<Expense> expenses;
+  final Map<int?, String> categoryNames;
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
+    final totals = <int?, int>{};
+    for (final e in expenses) {
+      totals[e.categoryId] = (totals[e.categoryId] ?? 0) + e.amountMinor;
+    }
+    final sorted = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (sorted.isEmpty) return const SizedBox.shrink();
+    final max = sorted.first.value;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: Type.item.copyWith(color: palette.print),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Text(
-              Money.format(amountMinor),
-              style: Type.monoBold.copyWith(color: palette.print),
-            ),
-          ],
-        ),
-        const SizedBox(height: Space.xs),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Stack(
-              children: [
-                Container(
-                  height: 8,
-                  width: constraints.maxWidth,
-                  decoration: BoxDecoration(
-                    color: palette.paperShade,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                AnimatedContainer(
-                  duration: Motion.settle,
-                  curve: Motion.heat,
-                  height: 8,
-                  width: constraints.maxWidth * fraction.clamp(0.0, 1.0),
-                  decoration: BoxDecoration(
-                    color: ink,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+        for (final entry in sorted) ...[
+          InkRun(
+            label: categoryNames[entry.key] ?? 'Unfiled',
+            amountMinor: entry.value,
+            fraction: entry.value / max,
+          ),
+          const SizedBox(height: Space.md),
+        ],
       ],
     );
   }
 }
 
-/// Thin columns, one per day of the month, height proportional to that day's
-/// spend. Tapping a column is the hover-equivalent on a touch screen: it
-/// reveals the exact figure below the chart rather than in a floating
-/// tooltip, which would be clipped at the screen edge on the first and last
-/// few days.
-class _DailySpend extends StatefulWidget {
-  const _DailySpend({required this.month, required this.expenses});
+/// Split by payment method, falling back to the account for slips logged
+/// before methods existed.
+class _PaidWithBreakdown extends ConsumerWidget {
+  const _PaidWithBreakdown({
+    required this.expenses,
+    required this.accountNames,
+  });
 
-  final DateTime month;
   final List<Expense> expenses;
+  final Map<int?, String> accountNames;
 
   @override
-  State<_DailySpend> createState() => _DailySpendState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final methods = ref.watch(paymentMethodsProvider).valueOrNull ?? const [];
+    final methodNames = {for (final m in methods) m.id: m.label};
 
-class _DailySpendState extends State<_DailySpend> {
-  int? _selectedDay;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final daysInMonth =
-        DateTime(widget.month.year, widget.month.month + 1, 0).day;
-    final byDay = List<int>.filled(daysInMonth + 1, 0);
-    for (final e in widget.expenses) {
-      final local = e.occurredAt.toLocal();
-      byDay[local.day] += e.amountMinor;
+    final totals = <String, int>{};
+    for (final e in expenses) {
+      final name = methodNames[e.paymentMethodId] ??
+          accountNames[e.accountId] ??
+          'Unassigned';
+      totals[name] = (totals[name] ?? 0) + e.amountMinor;
     }
-    final max = byDay.reduce((a, b) => a > b ? a : b);
 
-    final selected = _selectedDay;
+    final sorted = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    if (sorted.isEmpty) return const SizedBox.shrink();
+    final max = sorted.first.value;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 120,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var day = 1; day <= daysInMonth; day++)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1),
-                    child: GestureDetector(
-                      onTap: () => setState(
-                        () => _selectedDay = _selectedDay == day ? null : day,
-                      ),
-                      child: Semantics(
-                        label: 'Day $day, ${Money.format(byDay[day])}',
-                        child: _DayBar(
-                          fraction: max == 0 ? 0 : byDay[day] / max,
-                          selected: selected == day,
-                          hasSpend: byDay[day] > 0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+        for (final entry in sorted) ...[
+          InkRun(
+            label: entry.key,
+            amountMinor: entry.value,
+            fraction: entry.value / max,
           ),
+          const SizedBox(height: Space.md),
+        ],
+      ],
+    );
+  }
+}
+
+/// What the cards are carrying right now.
+///
+/// Deliberately not month-scoped like everything above it: a statement cycle
+/// straddles two calendar months, and pretending otherwise would show you a
+/// number no card issuer will ever bill you for. Hidden entirely when nothing
+/// is on credit, which for most people is most of the time.
+class _CommittedCycles extends ConsumerWidget {
+  const _CommittedCycles();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final standings = ref.watch(accountStandingsProvider).valueOrNull;
+    if (standings == null) return const SizedBox.shrink();
+
+    final rows = <MapEntry<String, int>>[];
+    for (final standing in standings) {
+      for (final method in standing.methods) {
+        final committed = standing.committed[method.id] ?? 0;
+        if (committed > 0) rows.add(MapEntry(method.label, committed));
+      }
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    rows.sort((a, b) => b.value.compareTo(a.value));
+    final max = rows.first.value;
+    final total = rows.fold(0, (sum, row) => sum + row.value);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: Space.xl),
+        const PerforatedRule(),
+        const SizedBox(height: Space.xl),
+        Text(
+          'ON THE CARDS',
+          style: Type.eyebrow.copyWith(color: palette.faded),
         ),
-        const SizedBox(height: Space.xs),
-        Container(height: 1, color: palette.perforation),
         const SizedBox(height: Space.sm),
         Text(
-          selected == null
-              ? 'Tap a day for its total.'
-              : '${DateFormat('d MMMM').format(DateTime(widget.month.year, widget.month.month, selected))} · '
-                  '${Money.format(byDay[selected])}',
+          '${Money.format(total)} charged and not yet collected.',
           style: Type.caption.copyWith(color: palette.faded),
         ),
+        const SizedBox(height: Space.lg),
+        for (final row in rows) ...[
+          InkRun(
+            label: row.key,
+            amountMinor: row.value,
+            fraction: row.value / max,
+          ),
+          const SizedBox(height: Space.md),
+        ],
       ],
-    );
-  }
-}
-
-class _DayBar extends StatelessWidget {
-  const _DayBar({
-    required this.fraction,
-    required this.selected,
-    required this.hasSpend,
-  });
-
-  final double fraction;
-  final bool selected;
-  final bool hasSpend;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    // A day with nothing spent still gets a hairline mark at the baseline —
-    // it read as a rendering glitch when it simply vanished.
-    final height =
-        hasSpend ? (fraction.clamp(0.0, 1.0) * 116).clamp(4.0, 116.0) : 2.0;
-
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: AnimatedContainer(
-        duration: Motion.quick,
-        height: height,
-        decoration: BoxDecoration(
-          color: selected
-              ? palette.carbon
-              : palette.carbon.withValues(alpha: 0.55),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-        ),
-      ),
     );
   }
 }

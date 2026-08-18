@@ -3,13 +3,14 @@
 import 'package:flutter/material.dart';
 
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 
 /// The type scale.
 ///
-/// Three faces, three jobs, no overlap. Bricolage is the display voice and is
-/// used sparingly — screen titles and the checkout total, nothing else.
-/// Instrument Sans carries every readable sentence. Space Mono owns anything
-/// numeric, because receipt printers are dot-matrix descendants and because
+/// Three faces, three jobs, no overlap. Bricolage is the display voice —
+/// screen titles, empty-state headlines, and the labels on command keys, so a
+/// plate says the same thing the page is titled in. Instrument Sans carries
+/// every readable sentence. Space Mono owns anything numeric, because
 /// monospace is the only way price columns actually line up.
 abstract final class Type {
   /// Bricolage and Instrument Sans ship as variable fonts, where weight lives
@@ -98,13 +99,16 @@ abstract final class Type {
     fontVariations: [FontVariation('wght', 400)],
   );
 
+  /// Primary and secondary plates. Same family as the page title and the
+  /// empty-state headline, so "Add expense" is spoken in the same voice as
+  /// "Receipts" and "Nothing on the list yet."
   static const TextStyle button = TextStyle(
-    fontFamily: Fonts.body,
-    fontSize: 15,
+    fontFamily: Fonts.display,
+    fontSize: 16,
     height: 1.1,
-    letterSpacing: 0.1,
-    fontWeight: FontWeight.w600,
-    fontVariations: [FontVariation('wght', 600)],
+    letterSpacing: -0.3,
+    fontWeight: FontWeight.w700,
+    fontVariations: [FontVariation('wght', 700), FontVariation('wdth', 92)],
   );
 }
 
@@ -122,6 +126,8 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
     surface: p.paper,
     onSurface: p.print,
   );
+
+  final onInk = brightness == Brightness.light ? p.paper : p.print;
 
   return ThemeData(
     useMaterial3: true,
@@ -159,29 +165,52 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: p.carbon,
-        foregroundColor: brightness == Brightness.light ? p.paper : p.print,
+        disabledBackgroundColor: p.carbon.withValues(alpha: 0.38),
+        foregroundColor: onInk,
+        disabledForegroundColor: onInk.withValues(alpha: 0.7),
         textStyle: Type.button,
-        minimumSize: const Size(0, 52),
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-        shape: const RoundedRectangleBorder(borderRadius: Radii.control),
+        minimumSize: const Size(0, Plate.height),
+        padding: Plate.padding,
+        iconSize: 18,
+        overlayColor: p.scorch.withValues(alpha: 0.22),
+        splashFactory: InkRipple.splashFactory,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        side: BorderSide(color: Plate.edge(p), width: 1.5),
+        shape: InkPlateBorder(
+          borderRadius: Radii.key,
+          side: BorderSide(color: Plate.edge(p), width: 1.5),
+          insetColor: Plate.inset(onInk),
+        ),
       ),
     ),
 
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        backgroundColor: p.paperShade,
+        disabledBackgroundColor: p.paperShade.withValues(alpha: 0.5),
         foregroundColor: p.print,
+        disabledForegroundColor: p.faded,
         textStyle: Type.button,
-        minimumSize: const Size(0, 52),
-        padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+        minimumSize: const Size(0, Plate.height),
+        padding: Plate.padding,
+        iconSize: 18,
+        overlayColor: p.scorch.withValues(alpha: 0.18),
+        splashFactory: InkRipple.splashFactory,
+        elevation: 0,
+        shadowColor: Colors.transparent,
         side: BorderSide(color: p.print, width: 1.5),
-        shape: const RoundedRectangleBorder(borderRadius: Radii.control),
+        shape: const InkPlateBorder(borderRadius: Radii.key),
       ),
     ),
 
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: p.carbon,
-        textStyle: Type.button,
+        textStyle: Type.body.copyWith(
+          fontWeight: FontWeight.w600,
+          fontVariations: const [FontVariation('wght', 600)],
+        ),
         minimumSize: const Size(0, 44),
       ),
     ),
@@ -237,7 +266,7 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
     ),
 
-    // Controls are pilled; paper is not. The hub FAB is a control.
+    // The hub capture is a plate, same as every other command key.
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: p.print,
       foregroundColor: p.paper,
@@ -246,7 +275,16 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       hoverElevation: 0,
       disabledElevation: 0,
       highlightElevation: 0,
-      shape: const RoundedRectangleBorder(borderRadius: Radii.control),
+      extendedTextStyle: Type.button,
+      extendedPadding: const EdgeInsets.symmetric(
+        horizontal: Space.lg,
+        vertical: Space.md,
+      ),
+      shape: InkPlateBorder(
+        borderRadius: Radii.key,
+        side: BorderSide(color: Plate.edge(p), width: 1.5),
+        insetColor: Plate.inset(onInk),
+      ),
     ),
   );
 }

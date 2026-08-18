@@ -139,9 +139,13 @@ class GymRepository {
   Future<WeekSummary> weekSummary([DateTime? around]) =>
       _sets.weekSummary(GymActivity.startOfWeek(around ?? DateTime.now()));
 
+  Future<List<WorkoutMark>> workoutMarks(int exerciseId) =>
+      _sets.workoutMarks(exerciseId);
+
   Future<List<ExerciseProgress>> progress([DateTime? around]) async {
     final weekStart = GymActivity.startOfWeek(around ?? DateTime.now());
     final rows = await _sets.progressRows(weekStart);
+    final marksByExercise = await _sets.workoutMarksByExercise();
     final result = <ExerciseProgress>[];
     for (final row in rows) {
       final exercise = Exercise(
@@ -153,6 +157,7 @@ class GymRepository {
         sort: row['sort']! as int,
       );
       final lastAtMs = row['last_set_at'] as int?;
+      final all = marksByExercise[exercise.id!] ?? const <WorkoutMark>[];
       result.add(
         ExerciseProgress(
           exercise: exercise,
@@ -165,7 +170,8 @@ class GymRepository {
           bestReps: row['best_reps'] as int?,
           weekVolumeGramReps: (row['week_volume'] as num).toInt(),
           weekSets: (row['week_sets'] as num).toInt(),
-          recentTopWeights: await _sets.recentTopWeights(exercise.id!),
+          recentWorkouts: all.length <= 12 ? all : all.sublist(all.length - 12),
+          workoutCount: all.length,
         ),
       );
     }

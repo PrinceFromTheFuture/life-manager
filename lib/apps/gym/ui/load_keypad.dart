@@ -13,9 +13,14 @@ import 'package:shopping_list/core/util/load.dart';
 /// Empty means bodyweight (zero grams), which is a real value on pull-ups
 /// and planks, not a missing one.
 class LoadEntry {
-  LoadEntry([this._raw = '']);
+  LoadEntry({String raw = '', this.replaceOnType = false}) : _raw = raw;
 
   String _raw;
+
+  /// Set while the field is focused and the shown value is a suggestion
+  /// (last load, a nudge). The next digit or dot starts a new number rather
+  /// than appending to 80 and making 807.
+  final bool replaceOnType;
 
   static const int _maxWholeDigits = 4;
 
@@ -24,48 +29,62 @@ class LoadEntry {
 
   String get display => _raw.isEmpty ? '0' : _raw;
 
+  /// The shown value is selected. First keystroke replaces it.
+  LoadEntry get pendingReplace =>
+      LoadEntry(raw: _raw, replaceOnType: true);
+
   /// Grams. Empty entry is 0 — bodyweight — not null.
   int get grams => Load.tryParse(_raw.isEmpty ? '0' : _raw) ?? 0;
 
   LoadEntry press(String digit) {
+    if (replaceOnType) return LoadEntry().press(digit);
+
     final parts = _raw.split('.');
 
     if (parts.length == 2) {
       if (parts[1].length >= 2) return this;
-      return LoadEntry('$_raw$digit');
+      return LoadEntry(raw: '$_raw$digit');
     }
 
     if (parts[0].length >= _maxWholeDigits) return this;
-    if (_raw == '0') return LoadEntry(digit);
-    return LoadEntry('$_raw$digit');
+    if (_raw == '0') return LoadEntry(raw: digit);
+    return LoadEntry(raw: '$_raw$digit');
   }
 
   LoadEntry dot() {
+    if (replaceOnType) return LoadEntry().dot();
     if (_raw.contains('.')) return this;
-    return LoadEntry(_raw.isEmpty ? '0.' : '$_raw.');
+    return LoadEntry(raw: _raw.isEmpty ? '0.' : '$_raw.');
   }
 
   LoadEntry backspace() {
+    if (replaceOnType) return LoadEntry();
     if (_raw.isEmpty) return this;
-    return LoadEntry(_raw.substring(0, _raw.length - 1));
+    return LoadEntry(raw: _raw.substring(0, _raw.length - 1));
   }
 
   LoadEntry clear() => LoadEntry();
 
   LoadEntry addGrams(int delta) {
     final next = (grams + delta).clamp(0, 9999 * Load.gramsPerKg);
-    return LoadEntry.fromGrams(next);
+    return LoadEntry.fromGrams(next, replaceOnType: replaceOnType);
   }
 
-  factory LoadEntry.fromGrams(int grams) =>
-      LoadEntry(Load.formatBare(grams).replaceAll(',', ''));
+  factory LoadEntry.fromGrams(int grams, {bool replaceOnType = false}) =>
+      LoadEntry(
+        raw: Load.formatBare(grams).replaceAll(',', ''),
+        replaceOnType: replaceOnType,
+      );
 }
 
 /// Integer reps. Same keypad, no decimal.
 class RepsEntry {
-  RepsEntry([this._raw = '']);
+  RepsEntry({String raw = '', this.replaceOnType = false}) : _raw = raw;
 
   String _raw;
+
+  /// Same as [LoadEntry.replaceOnType] — last-set reps are a suggestion.
+  final bool replaceOnType;
 
   static const int _maxDigits = 3;
 
@@ -73,31 +92,42 @@ class RepsEntry {
   bool get isEmpty => _raw.isEmpty;
   String get display => _raw.isEmpty ? '0' : _raw;
 
+  RepsEntry get pendingReplace =>
+      RepsEntry(raw: _raw, replaceOnType: true);
+
   int get value {
     if (_raw.isEmpty) return 0;
     return int.tryParse(_raw) ?? 0;
   }
 
   RepsEntry press(String digit) {
+    if (replaceOnType) return RepsEntry().press(digit);
     if (_raw.length >= _maxDigits) return this;
-    if (_raw == '0') return RepsEntry(digit);
-    return RepsEntry('$_raw$digit');
+    if (_raw == '0') return RepsEntry(raw: digit);
+    return RepsEntry(raw: '$_raw$digit');
   }
 
   RepsEntry backspace() {
+    if (replaceOnType) return RepsEntry();
     if (_raw.isEmpty) return this;
-    return RepsEntry(_raw.substring(0, _raw.length - 1));
+    return RepsEntry(raw: _raw.substring(0, _raw.length - 1));
   }
 
   RepsEntry clear() => RepsEntry();
 
   RepsEntry add(int delta) {
     final next = (value + delta).clamp(0, 999);
-    return RepsEntry(next == 0 ? '' : next.toString());
+    return RepsEntry(
+      raw: next == 0 ? '' : next.toString(),
+      replaceOnType: replaceOnType,
+    );
   }
 
-  factory RepsEntry.fromValue(int reps) =>
-      RepsEntry(reps == 0 ? '' : reps.toString());
+  factory RepsEntry.fromValue(int reps, {bool replaceOnType = false}) =>
+      RepsEntry(
+        raw: reps == 0 ? '' : reps.toString(),
+        replaceOnType: replaceOnType,
+      );
 }
 
 enum KeypadField { reps, weight }

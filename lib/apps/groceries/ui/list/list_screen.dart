@@ -28,6 +28,9 @@ class ListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
     final listAsync = ref.watch(activeListProvider);
+    // Warm the layout so pick-up never has to wait on it, and so the
+    // first paint of that screen is already in store order.
+    ref.watch(aisleMemoryProvider);
 
     return Scaffold(
       appBar: AppBar(

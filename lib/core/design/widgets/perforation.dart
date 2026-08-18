@@ -16,12 +16,21 @@ class PerforatedRule extends StatelessWidget {
     this.gap = 5,
     this.indent = 0,
     this.color,
+    this.notchStart,
+    this.notchWidth = 0,
   });
 
   final double dotRadius;
   final double gap;
   final double indent;
   final Color? color;
+
+  /// Where a break in the run of dots begins, measured from the left edge of
+  /// the rule. Used by the divider tabs, where the missing dots are what say
+  /// which section the paper below belongs to.
+  final double? notchStart;
+
+  final double notchWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +42,8 @@ class PerforatedRule extends StatelessWidget {
           color: color ?? context.thermal.perforation,
           dotRadius: dotRadius,
           gap: gap,
+          notchStart: notchStart,
+          notchWidth: notchWidth,
         ),
       ),
     );
@@ -44,11 +55,15 @@ class _PerforationPainter extends CustomPainter {
     required this.color,
     required this.dotRadius,
     required this.gap,
+    this.notchStart,
+    this.notchWidth = 0,
   });
 
   final Color color;
   final double dotRadius;
   final double gap;
+  final double? notchStart;
+  final double notchWidth;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -59,18 +74,23 @@ class _PerforationPainter extends CustomPainter {
     // trailing off short on the right.
     final inset = (size.width - (count - 1) * step) / 2;
 
+    final from = notchStart;
+    final to = from == null ? null : from + notchWidth;
+
     for (var i = 0; i < count; i++) {
-      canvas.drawCircle(
-        Offset(inset + i * step, size.height / 2),
-        dotRadius,
-        paint,
-      );
+      final x = inset + i * step;
+      if (from != null && to != null && x >= from && x <= to) continue;
+      canvas.drawCircle(Offset(x, size.height / 2), dotRadius, paint);
     }
   }
 
   @override
   bool shouldRepaint(_PerforationPainter old) =>
-      old.color != color || old.dotRadius != dotRadius || old.gap != gap;
+      old.color != color ||
+      old.dotRadius != dotRadius ||
+      old.gap != gap ||
+      old.notchStart != notchStart ||
+      old.notchWidth != notchWidth;
 }
 
 /// The torn edge that separates what's still to buy from what's already in the

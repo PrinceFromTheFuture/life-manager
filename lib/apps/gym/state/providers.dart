@@ -49,6 +49,13 @@ final progressProvider =
   return ref.watch(gymRepositoryProvider).progress();
 });
 
+/// Full workout history for one movement, oldest first.
+final exerciseWorkoutsProvider =
+    FutureProvider.autoDispose.family<List<WorkoutMark>, int>((ref, id) {
+  ref.watch(gymTickProvider);
+  return ref.watch(gymRepositoryProvider).workoutMarks(id);
+});
+
 /// Bumped after every write so the day pass, progress and hub all refresh
 /// without each screen knowing about the others.
 final gymTickProvider = StateProvider<int>((ref) => 0);

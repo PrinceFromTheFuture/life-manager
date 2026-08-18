@@ -1,11 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
+import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/data/location_service.dart';
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
+import 'package:shopping_list/apps/receipts/data/models/income.dart';
 import 'package:shopping_list/apps/receipts/data/models/month_kind_totals.dart';
+import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
+import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
+import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
+import 'package:shopping_list/apps/receipts/data/recurring_materializer.dart';
 import 'package:shopping_list/apps/receipts/data/ocr/ocr_source.dart';
 import 'package:shopping_list/apps/receipts/data/ocr/receipt_parser.dart';
 import 'package:shopping_list/apps/receipts/data/ocr/receipt_scanner.dart';
@@ -126,7 +132,9 @@ class ExpensesController extends AsyncNotifier<List<Expense>> {
 
   ExpenseRepository get _repo => ref.read(expenseRepositoryProvider);
 
-  Future<void> _reload() async {
+  /// Public because the standing-order sweep writes expenses behind the list's
+  /// back and has to tell it so.
+  Future<void> reload() async {
     state = AsyncData(await _repo.recent());
     // The hub caches these rows, so it is stale the moment this changes.
     ref.invalidate(activityFeedProvider);
@@ -145,19 +153,19 @@ class ExpensesController extends AsyncNotifier<List<Expense>> {
     final when = saved.occurredAt;
     ref.read(selectedMonthProvider.notifier).state =
         DateTime(when.year, when.month);
-    await _reload();
+    await reload();
     return saved;
   }
 
   Future<void> edit(Expense expense, {String? receiptSourcePath}) async {
     await _repo.update(expense, receiptSourcePath: receiptSourcePath);
-    await _reload();
+    await reload();
     ref.invalidate(expenseDetailProvider(expense.id!));
   }
 
   Future<void> remove(int id) async {
     await _repo.delete(id);
-    await _reload();
+    await reload();
     ref.invalidate(expenseDetailProvider(id));
   }
 }
@@ -213,6 +221,187 @@ final previousMonthTotalProvider = FutureProvider.autoDispose<int>((ref) {
   final previous = DateTime(month.year, month.month - 1);
   return ref.watch(expenseRepositoryProvider).totalBetween(previous, month);
 });
+
+/// Last month through the same calendar day — the fair comparison while
+/// this month is still open.
+final lastMonthToDateProvider = FutureProvider.autoDispose<int>((ref) {
+  ref.watch(expensesProvider);
+  final month = ref.watch(selectedMonthProvider);
+  final now = DateTime.now();
+  final previous = DateTime(month.year, month.month - 1);
+  final isCurrent = now.year == month.year && now.month == month.month;
+  final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+  final day = isCurrent ? now.day.clamp(1, daysInMonth) : daysInMonth;
+  final daysInPrev = DateTime(previous.year, previous.month + 1, 0).day;
+  final clip = day.clamp(1, daysInPrev);
+  final to = DateTime(previous.year, previous.month, clip + 1);
+  return ref.watch(expenseRepositoryProvider).totalBetween(previous, to);
+});
+
+// --------------------------------------------------------------- navigation
+
+/// Which divider tab the shell is showing. A provider rather than widget state
+/// so the section survives pushing a detail screen and coming back.
+final receiptsTabProvider = StateProvider<int>((ref) => 0);
+
+// ------------------------------------------------------------------ finance
+
+/// Bumped by every write that touches the ledger from outside the expense list
+/// — income, a settlement, a new payment method, a standing order.
+///
+/// One dial rather than a list of invalidations at each call site: forgetting
+/// one of five `ref.invalidate` lines is how a balance ends up stale on one
+/// screen and correct on the next.
+final financeRevisionProvider = StateProvider<int>((ref) => 0);
+
+final paymentMethodsProvider = FutureProvider<List<PaymentMethod>>((ref) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).paymentMethods();
+});
+
+/// The order the expense sheet offers them in: busiest first.
+final paymentMethodsByUseProvider =
+    FutureProvider<List<PaymentMethod>>((ref) {
+  ref.watch(financeRevisionProvider);
+  ref.watch(expensesProvider);
+  return ref.watch(expenseRepositoryProvider).paymentMethodsByUse();
+});
+
+/// What the sheet preselects, so the common capture needs no tap here at all.
+final lastUsedPaymentMethodProvider = FutureProvider<int?>((ref) {
+  ref.watch(expensesProvider);
+  return ref.watch(expenseRepositoryProvider).lastUsedPaymentMethodId();
+});
+
+final accountStandingsProvider =
+    FutureProvider.autoDispose<List<AccountStanding>>((ref) {
+  ref.watch(expensesProvider);
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).standings();
+});
+
+final accountLedgerProvider =
+    FutureProvider.autoDispose.family<List<LedgerLine>, int>((ref, accountId) {
+  ref.watch(expensesProvider);
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).ledgerFor(accountId);
+});
+
+final recentIncomesProvider = FutureProvider.autoDispose<List<Income>>((ref) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).recentIncomes();
+});
+
+final recurringRulesProvider = FutureProvider<List<RecurringRule>>((ref) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).recurringRules();
+});
+
+final recurringMonthlyTotalProvider = FutureProvider<int>((ref) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).recurringMonthlyTotal();
+});
+
+/// Everything that writes money outside the expense list.
+///
+/// Each method bumps [financeRevisionProvider] once, at the end, so a screen
+/// rebuilds exactly once per action rather than once per affected query.
+class FinanceController {
+  FinanceController(this.ref);
+
+  final Ref ref;
+
+  ExpenseRepository get _repo => ref.read(expenseRepositoryProvider);
+
+  void _touch() =>
+      ref.read(financeRevisionProvider.notifier).state++;
+
+  Future<Account> addAccount(String name, {String kind = 'other'}) async {
+    final created = await _repo.addAccount(name, kind: kind);
+    ref.invalidate(accountsProvider);
+    _touch();
+    return created;
+  }
+
+  Future<void> setOpeningBalance(int accountId, int openingMinor) async {
+    await _repo.setOpeningBalance(accountId, openingMinor);
+    ref.invalidate(accountsProvider);
+    _touch();
+  }
+
+  Future<void> archiveAccount(int id) async {
+    await _repo.archiveAccount(id);
+    ref.invalidate(accountsProvider);
+    _touch();
+  }
+
+  Future<void> addPaymentMethod(PaymentMethod method) async {
+    await _repo.addPaymentMethod(method);
+    _touch();
+  }
+
+  Future<void> updatePaymentMethod(PaymentMethod method) async {
+    await _repo.updatePaymentMethod(method);
+    _touch();
+  }
+
+  Future<void> archivePaymentMethod(int id) async {
+    await _repo.archivePaymentMethod(id);
+    _touch();
+  }
+
+  Future<void> addIncome(Income income) async {
+    await _repo.addIncome(income);
+    ref.invalidate(activityFeedProvider);
+    _touch();
+  }
+
+  Future<void> deleteIncome(int id) async {
+    await _repo.deleteIncome(id);
+    ref.invalidate(activityFeedProvider);
+    _touch();
+  }
+
+  Future<void> addRule(RecurringRule rule) async {
+    await _repo.addRecurringRule(rule);
+    _touch();
+  }
+
+  Future<void> updateRule(RecurringRule rule) async {
+    await _repo.updateRecurringRule(rule);
+    _touch();
+  }
+
+  Future<void> setRuleActive(int id, {required bool active}) async {
+    await _repo.setRecurringActive(id, active: active);
+    _touch();
+  }
+
+  Future<void> deleteRule(int id) async {
+    await _repo.deleteRecurringRule(id);
+    _touch();
+  }
+
+  /// Posts what should already have happened. Returns null when there was
+  /// nothing to do, which is the overwhelmingly common case.
+  Future<SweepResult> sweep() async {
+    final result = await RecurringMaterializer(_repo).run();
+    if (!result.isEmpty) {
+      await ref.read(expensesProvider.notifier).reload();
+      _touch();
+    }
+    return result;
+  }
+}
+
+final financeControllerProvider =
+    Provider<FinanceController>((ref) => FinanceController(ref));
+
+final receiptsLensProvider =
+    StateProvider<ReceiptsLens>((ref) => ReceiptsLens.all);
+
+final receiptsSortProvider =
+    StateProvider<ReceiptsSort>((ref) => ReceiptsSort.newest);
 
 /// Business vs personal, month by month, so statistics can show what was
 /// claimed without opening every slip.

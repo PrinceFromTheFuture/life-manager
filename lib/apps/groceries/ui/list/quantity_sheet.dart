@@ -8,6 +8,7 @@ import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 
@@ -170,23 +171,14 @@ class _StepButton extends StatelessWidget {
     final palette = context.thermal;
     final enabled = onPressed != null;
 
-    return Material(
-      color: enabled
-          ? palette.paperShade
-          : palette.paperShade.withValues(alpha: 0.4),
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: onPressed,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 64,
-          height: 64,
-          child: Icon(
-            icon,
-            size: 28,
-            color: enabled ? palette.print : palette.faded,
-          ),
-        ),
+    return InkPlate(
+      onPressed: onPressed,
+      primary: false,
+      size: const Size(64, 64),
+      child: Icon(
+        icon,
+        size: 28,
+        color: enabled ? palette.print : palette.faded,
       ),
     );
   }
@@ -210,10 +202,23 @@ class _UnitChip extends StatelessWidget {
 
     return Material(
       color: selected ? palette.carbon : palette.paperShade,
-      borderRadius: Radii.control,
+      shape: InkPlateBorder(
+        borderRadius: Radii.key,
+        side: BorderSide(
+          color: selected ? Plate.edge(palette) : palette.print,
+          width: 1.5,
+        ),
+        insetColor: selected
+            ? Plate.inset(light ? palette.paper : palette.print)
+            : null,
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: Radii.control,
+        borderRadius: Radii.key,
         onTap: onTap,
+        overlayColor: WidgetStatePropertyAll(
+          palette.scorch.withValues(alpha: 0.18),
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: Space.lg,

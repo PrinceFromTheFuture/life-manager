@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_activity.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
-import 'package:shopping_list/apps/receipts/ui/expense_list_screen.dart';
-import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
+import 'package:shopping_list/apps/receipts/ui/receipts_shell.dart';
 import 'package:shopping_list/core/activity/activity_entry.dart';
 import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
@@ -40,22 +39,12 @@ class ReceiptsApp implements MiniApp {
   ModuleMigrations get migrations => receiptsMigrations;
 
   @override
-  Widget buildHome(BuildContext context) => const ExpenseListScreen();
+  Widget buildHome(BuildContext context) => const ReceiptsShell();
 
-  /// Worth a hub shortcut, unlike groceries.
-  ///
-  /// The value of this app is capturing a receipt in the seconds after paying,
-  /// while you are still standing there. Making that one tap from the home
-  /// screen rather than two is the difference between logging expenses and
-  /// meaning to.
+  /// None here — the hub hosts Add expense as its one first-class control,
+  /// so capturing a receipt is one tap from home rather than a drawer item.
   @override
-  List<QuickAction> quickActions(BuildContext context) => [
-        QuickAction(
-          label: 'Add expense',
-          icon: Icons.photo_camera_outlined,
-          builder: (_) => const ExpenseSheet(),
-        ),
-      ];
+  List<QuickAction> quickActions(BuildContext context) => const [];
 
   @override
   Widget buildActivityRow(BuildContext context, ActivityEntry entry) {

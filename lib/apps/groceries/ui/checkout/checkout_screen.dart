@@ -46,6 +46,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _error = null;
     });
 
+    final leftover =
+        ref.read(activeListProvider).valueOrNull?.toBuy.length ?? 0;
     final navigator = Navigator.of(context);
 
     try {
@@ -53,11 +55,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           .read(activeListProvider.notifier)
           .completeTrip(totalMinor: total, note: _noteController.text.trim());
 
-      // Back to the list, which is now empty and ready for the next trip.
+      // Back to the list. Unpicked items are still there; picked ones are not.
       navigator.popUntil((route) => route.isFirst);
       showPaperSnack(
         context,
-        message: 'Trip saved · ${Money.format(total)}',
+        message: leftover == 0
+            ? 'Trip saved · ${Money.format(total)}'
+            : leftover == 1
+                ? 'Trip saved · 1 item stays on the list'
+                : 'Trip saved · $leftover items stay on the list',
       );
     } on Exception catch (e) {
       // Leave the screen up with everything still filled in — the total and

@@ -146,7 +146,9 @@ class SetDao {
     }
 
     return WeekSummary(
+      weekStart: weekStart,
       daysTrained: days.length,
+      trainedDayKeys: days.toList()..sort(),
       sets: row['sets']! as int,
       volumeGramReps: (row['volume'] as num).toInt(),
     );
@@ -196,30 +198,84 @@ class SetDao {
     );
   }
 
-  /// Heaviest set per local calendar day for [exerciseId], oldest first, last
-  /// [limit] sessions. Grouped in Dart so an evening session is not split
-  /// across UTC midnight.
-  Future<List<int>> recentTopWeights(int exerciseId, {int limit = 8}) async {
+  /// Heaviest set per local calendar day for [exerciseId], oldest first.
+  /// Grouped in Dart so an evening session is not split across UTC midnight.
+  Future<List<WorkoutMark>> workoutMarks(int exerciseId) async {
     final rows = await _db.query(
       'gym_sets',
-      columns: ['occurred_at', 'weight_g'],
+      columns: ['occurred_at', 'weight_g', 'reps'],
       where: 'exercise_id = ?',
       whereArgs: [exerciseId],
       orderBy: 'occurred_at ASC, id ASC',
     );
-    final byDay = <int, int>{};
+    return marksFromRows(rows);
+  }
+
+  /// Every exercise's workouts, oldest first.
+  ///
+  /// One pass over the table so the progress list does not issue a query
+  /// per movement.
+  Future<Map<int, List<WorkoutMark>>> workoutMarksByExercise() async {
+    final rows = await _db.query(
+      'gym_sets',
+      columns: ['exercise_id', 'occurred_at', 'weight_g', 'reps'],
+      orderBy: 'occurred_at ASC, id ASC',
+    );
+
+    final grouped = <int, List<Map<String, Object?>>>{};
+    for (final row in rows) {
+      grouped.putIfAbsent(row['exercise_id']! as int, () => []).add(row);
+    }
+
+    return {
+      for (final entry in grouped.entries)
+        entry.key: marksFromRows(entry.value),
+    };
+  }
+
+  /// Public so grouping can be tested without logging through the repository.
+  static List<WorkoutMark> marksFromRows(List<Map<String, Object?>> rows) {
+    final byDay = <int, _DayAcc>{};
     final order = <int>[];
     for (final row in rows) {
-      final key = GymActivity.dayKey(
-        DateTime.fromMillisecondsSinceEpoch(row['occurred_at']! as int),
-      );
+      final at =
+          DateTime.fromMillisecondsSinceEpoch(row['occurred_at']! as int);
+      final key = GymActivity.dayKey(at);
       final weight = row['weight_g']! as int;
-      if (!byDay.containsKey(key)) order.add(key);
-      final prev = byDay[key];
-      if (prev == null || weight > prev) byDay[key] = weight;
+      final reps = row['reps']! as int;
+      var acc = byDay[key];
+      if (acc == null) {
+        acc = _DayAcc(day: GymActivity.startOfDay(at));
+        byDay[key] = acc;
+        order.add(key);
+      }
+      acc.sets++;
+      acc.volumeGramReps += weight * reps;
+      if (weight > acc.topWeightG ||
+          (weight == acc.topWeightG && reps > acc.topReps)) {
+        acc.topWeightG = weight;
+        acc.topReps = reps;
+      }
     }
-    final all = [for (final key in order) byDay[key]!];
-    if (all.length <= limit) return all;
-    return all.sublist(all.length - limit);
+    return [
+      for (final key in order)
+        WorkoutMark(
+          day: byDay[key]!.day,
+          topWeightG: byDay[key]!.topWeightG,
+          topReps: byDay[key]!.topReps,
+          sets: byDay[key]!.sets,
+          volumeGramReps: byDay[key]!.volumeGramReps,
+        ),
+    ];
   }
+}
+
+class _DayAcc {
+  _DayAcc({required this.day});
+
+  final DateTime day;
+  int topWeightG = 0;
+  int topReps = 0;
+  int sets = 0;
+  int volumeGramReps = 0;
 }

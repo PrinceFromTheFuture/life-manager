@@ -24,6 +24,11 @@ class ImageStore {
 
   static const String _subdir = 'receipts';
 
+  /// Breaks ties between two saves in the same millisecond. Without it, a
+  /// replace that lands on the timestamp of the file it replaces writes the new
+  /// image to the old name and then deletes it — the receipt is simply gone.
+  static int _tieBreak = 0;
+
   Future<Directory> _root() async {
     final override = _rootOverride;
     if (override != null) return override;
@@ -42,7 +47,9 @@ class ImageStore {
     final extension = p.extension(sourcePath).toLowerCase();
     final safeExtension = extension.isEmpty ? '.jpg' : extension;
     final stamp = DateTime.now().millisecondsSinceEpoch;
-    final fileName = 'receipt_${tripId ?? 'draft'}_$stamp$safeExtension';
+    final nonce = (_tieBreak = (_tieBreak + 1) % 1000).toString().padLeft(3, '0');
+    final fileName =
+        'receipt_${tripId ?? 'draft'}_${stamp}_$nonce$safeExtension';
 
     final destination = p.join(dir.path, fileName);
     await File(sourcePath).copy(destination);

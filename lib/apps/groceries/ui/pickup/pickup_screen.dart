@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'package:shopping_list/apps/groceries/data/aisle_memory.dart';
+import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
@@ -49,6 +51,7 @@ class _PickupScreenState extends ConsumerState<PickupScreen> {
   Widget build(BuildContext context) {
     final palette = context.thermal;
     final listAsync = ref.watch(activeListProvider);
+    final memoryAsync = ref.watch(aisleMemoryProvider);
 
     return Scaffold(
       backgroundColor: palette.paper,
@@ -65,7 +68,12 @@ class _PickupScreenState extends ConsumerState<PickupScreen> {
         error: (e, _) => Center(
           child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
         ),
-        data: (list) => _PickupBody(list: list),
+        data: (list) => memoryAsync.when(
+          skipLoadingOnReload: true,
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => _PickupBody(list: list, memory: AisleMemory.empty),
+          data: (memory) => _PickupBody(list: list, memory: memory),
+        ),
       ),
       bottomNavigationBar: listAsync.maybeWhen(
         data: (list) => _PickupFooter(list: list),
@@ -76,14 +84,19 @@ class _PickupScreenState extends ConsumerState<PickupScreen> {
 }
 
 class _PickupBody extends ConsumerWidget {
-  const _PickupBody({required this.list});
+  const _PickupBody({required this.list, required this.memory});
 
   final ActiveList list;
+  final AisleMemory memory;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final toBuy = list.toBuy;
-    final inCart = list.inCart;
+    final toBuy = memory.arrange(
+      list.toBuy,
+      productId: (item) => item.productId,
+      listOrder: (item) => item.sortOrder,
+    );
+    final inCart = _inPickOrder(list.inCart);
     final controller = ref.read(activeListProvider.notifier);
 
     return CustomScrollView(
@@ -144,6 +157,26 @@ class _PickupBody extends ConsumerWidget {
         const SliverToBoxAdapter(child: SizedBox(height: Space.xxl)),
       ],
     );
+  }
+
+  /// The trolley is the path they just walked, not the learned map.
+  static List<TripItem> _inPickOrder(List<TripItem> items) {
+    if (items.length < 2) return items;
+    final indexed = [for (var i = 0; i < items.length; i++) (i, items[i])];
+    indexed.sort((a, b) {
+      final atA = a.$2.pickedAt;
+      final atB = b.$2.pickedAt;
+      if (atA != null && atB != null) {
+        final byTime = atA.compareTo(atB);
+        if (byTime != 0) return byTime;
+      } else if (atA != null) {
+        return -1;
+      } else if (atB != null) {
+        return 1;
+      }
+      return a.$1.compareTo(b.$1);
+    });
+    return [for (final entry in indexed) entry.$2];
   }
 }
 

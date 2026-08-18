@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/product.dart';
+import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/apps/groceries/state/providers.dart';
+import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 
 /// The add field, pinned above the keyboard, with its suggestion strip.
 ///
@@ -67,12 +68,26 @@ class _AddItemBarState extends ConsumerState<AddItemBar> {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final showSuggestions = _focus.hasFocus;
+    // Keep the usual-basket query warm so opening the field does not start
+    // from a loading blank — that was a pop of its own.
+    ref.watch(suggestionsProvider);
+
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final motion = reduce ? Duration.zero : Motion.settle;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showSuggestions) const _SuggestionStrip(),
+        ClipRect(
+          child: AnimatedSize(
+            duration: motion,
+            curve: Motion.heat,
+            alignment: Alignment.bottomCenter,
+            child: _focus.hasFocus
+                ? _SuggestionStrip(onPicked: _submit)
+                : const SizedBox(width: double.infinity),
+          ),
+        ),
         Container(
           color: palette.paper,
           padding: EdgeInsets.only(
@@ -114,24 +129,87 @@ class _AddButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    return Semantics(
-      button: true,
-      label: 'Add item',
-      child: Material(
-        color: palette.carbon,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 52,
-            height: 52,
-            child: Icon(
-              Icons.add,
-              color: Theme.of(context).brightness == Brightness.light
-                  ? palette.paper
-                  : palette.print,
+    final onInk = Theme.of(context).brightness == Brightness.light
+        ? palette.paper
+        : palette.print;
+
+    return InkPlate(
+      onPressed: onPressed,
+      size: const Size(Plate.height, Plate.height),
+      semanticLabel: 'Add item',
+      child: Icon(Icons.add, color: onInk),
+    );
+  }
+}
+
+/// Past products, ranked by how often they're bought. Tapping one adds it
+/// outright — for a weekly shop the fastest path is usually not typing at all.
+///
+/// Height is fixed. Collapsing to nothing while a query reloads is what made
+/// the list jump on every keystroke.
+class _SuggestionStrip extends ConsumerWidget {
+  const _SuggestionStrip({required this.onPicked});
+
+  final ValueChanged<String> onPicked;
+
+  static const double _height = 52;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final suggestions = ref.watch(suggestionsProvider);
+    final query = ref.watch(addQueryProvider);
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final motion = reduce ? Duration.zero : Motion.settle;
+
+    final products = suggestions.when(
+      skipLoadingOnReload: true,
+      data: (list) => list,
+      loading: () => const <Product>[],
+      error: (_, __) => const <Product>[],
+    );
+
+    final content = products.isEmpty
+        ? _EmptyMatches(query: query)
+        : ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+            itemCount: products.length,
+            separatorBuilder: (_, __) => const SizedBox(width: Space.sm),
+            itemBuilder: (context, i) => _SuggestionChip(
+              product: products[i],
+              onPicked: onPicked,
             ),
+          );
+
+    return ColoredBox(
+      color: palette.paper,
+      child: SizedBox(
+        height: _height,
+        width: double.infinity,
+        child: AnimatedSwitcher(
+          duration: motion,
+          switchInCurve: Motion.heat,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.12),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey(
+              products.isEmpty
+                  ? 'empty'
+                  : products.map((p) => p.id).join(','),
+            ),
+            child: content,
           ),
         ),
       ),
@@ -139,44 +217,37 @@ class _AddButton extends StatelessWidget {
   }
 }
 
-/// Past products, ranked by how often they're bought. Tapping one adds it
-/// outright — for a weekly shop the fastest path is usually not typing at all.
-class _SuggestionStrip extends ConsumerWidget {
-  const _SuggestionStrip();
+class _EmptyMatches extends StatelessWidget {
+  const _EmptyMatches({required this.query});
+
+  final String query;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final palette = context.thermal;
-    final suggestions = ref.watch(suggestionsProvider);
-
-    return suggestions.maybeWhen(
-      data: (products) {
-        if (products.isEmpty) return const SizedBox.shrink();
-        return Container(
-          height: 52,
-          width: double.infinity,
-          color: palette.paper,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-            itemCount: products.length,
-            separatorBuilder: (_, __) => const SizedBox(width: Space.sm),
-            itemBuilder: (context, i) => _SuggestionChip(product: products[i]),
-          ),
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          query.trim().isEmpty
+              ? 'Add something and it will be remembered here.'
+              : 'No matches.',
+          style: Type.caption.copyWith(color: palette.faded),
+        ),
+      ),
     );
   }
 }
 
-class _SuggestionChip extends ConsumerWidget {
-  const _SuggestionChip({required this.product});
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({required this.product, required this.onPicked});
 
   final Product product;
+  final ValueChanged<String> onPicked;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final palette = context.thermal;
 
     return Center(
@@ -184,13 +255,11 @@ class _SuggestionChip extends ConsumerWidget {
         color: palette.paperShade,
         borderRadius: Radii.control,
         child: InkWell(
+          // Must not steal focus from the add field — otherwise the strip
+          // collapses before the tap is counted, and the keyboard bounces.
+          canRequestFocus: false,
           borderRadius: Radii.control,
-          onTap: () async {
-            await ref
-                .read(activeListProvider.notifier)
-                .addItem(product.name);
-            unawaited(HapticFeedback.selectionClick());
-          },
+          onTap: () => onPicked(product.name),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: Space.md + 2,

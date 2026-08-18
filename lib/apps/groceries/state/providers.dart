@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/groceries/data/aisle_memory.dart';
 import 'package:shopping_list/apps/groceries/data/models/product.dart';
 import 'package:shopping_list/apps/groceries/data/models/trip.dart';
 import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
@@ -111,8 +112,8 @@ class ActiveListController extends AsyncNotifier<ActiveList> {
     await _reload();
   }
 
-  /// Closes the trip out. The active list empties, history gains a row, and
-  /// the next item added opens a fresh trip.
+  /// Closes the trip out. History gains a row; anything still unpicked stays
+  /// on the shopping list.
   Future<void> completeTrip({required int totalMinor, String? note}) async {
     final trip = state.valueOrNull?.trip;
     if (trip == null) return;
@@ -125,6 +126,8 @@ class ActiveListController extends AsyncNotifier<ActiveList> {
     ref.invalidate(historyProvider);
     // The checkout just wrote a feed entry, so the hub is now stale.
     ref.invalidate(activityFeedProvider);
+    // Next pick-up should walk the store as this shop just taught it.
+    ref.invalidate(aisleMemoryProvider);
   }
 }
 
@@ -132,6 +135,12 @@ final activeListProvider =
     AsyncNotifierProvider<ActiveListController, ActiveList>(
   ActiveListController.new,
 );
+
+/// Learned store order. Invalidated only when a trip is filed, so ticking
+/// boxes mid-aisle cannot reshuffle what is still to find.
+final aisleMemoryProvider = FutureProvider<AisleMemory>((ref) {
+  return ref.read(repositoryProvider).aisleMemory();
+});
 
 // -------------------------------------------------------------------- history
 

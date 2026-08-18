@@ -19,25 +19,35 @@ class ExercisesScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: palette.paper,
       appBar: AppBar(title: const Text('Exercises')),
-      body: source.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
-        ),
-        data: (rows) => rows.isEmpty
-            ? Center(
+      // The add field lives in the body, not in `bottomNavigationBar`.
+      // Scaffold does not lift a bottom bar out of the way of the keyboard,
+      // so the name field sat behind it and you could not see what you were
+      // typing. Inside the body, resizeToAvoidBottomInset shrinks the list
+      // and the field rides above the keys.
+      body: Column(
+        children: [
+          Expanded(
+            child: source.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
                 child: Text(
-                  'No exercises yet.',
-                  style: Type.body.copyWith(color: palette.faded),
+                  '$e',
+                  style: Type.caption.copyWith(color: palette.faded),
                 ),
-              )
-            : _ReorderableList(rows: rows),
-      ),
-      bottomNavigationBar: const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
-          child: _AddRow(),
-        ),
+              ),
+              data: (rows) => rows.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No exercises yet.',
+                        style: Type.body.copyWith(color: palette.faded),
+                      ),
+                    )
+                  : _ReorderableList(rows: rows),
+            ),
+          ),
+          const _AddRow(),
+        ],
       ),
     );
   }
@@ -55,7 +65,8 @@ class _ReorderableList extends ConsumerWidget {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: Space.md),
       itemCount: rows.length,
-      onReorderItem: (oldIndex, newIndex) {
+      onReorder: (oldIndex, newIndex) {
+        if (newIndex > oldIndex) newIndex -= 1;
         final ids = rows.map((r) => r.id!).toList();
         final id = ids.removeAt(oldIndex);
         ids.insert(newIndex, id);
@@ -222,10 +233,12 @@ class _AddRow extends ConsumerStatefulWidget {
 
 class _AddRowState extends ConsumerState<_AddRow> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
 
   @override
   void dispose() {
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -234,23 +247,39 @@ class _AddRowState extends ConsumerState<_AddRow> {
     if (name.isEmpty) return;
     await ref.read(gymControllerProvider).addExercise(name);
     _controller.clear();
+    if (mounted) _focus.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _controller,
-            textCapitalization: TextCapitalization.words,
-            onSubmitted: (_) => _submit(),
-            decoration: const InputDecoration(hintText: 'New exercise name'),
+    final palette = context.thermal;
+
+    return Container(
+      color: palette.paper,
+      padding: EdgeInsets.only(
+        left: Space.lg,
+        right: Space.lg,
+        top: Space.md,
+        bottom: Space.md + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _focus,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              style: Type.item.copyWith(color: palette.print),
+              cursorColor: palette.carbon,
+              decoration: const InputDecoration(hintText: 'New exercise name'),
+            ),
           ),
-        ),
-        const SizedBox(width: Space.sm),
-        FilledButton(onPressed: _submit, child: const Text('Add')),
-      ],
+          const SizedBox(width: Space.sm),
+          FilledButton(onPressed: _submit, child: const Text('Add')),
+        ],
+      ),
     );
   }
 }

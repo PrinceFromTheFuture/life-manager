@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:shopping_list/apps/gym/data/gym_activity.dart';
 import 'package:shopping_list/apps/gym/data/models/progress.dart';
 import 'package:shopping_list/apps/gym/state/providers.dart';
+import 'package:shopping_list/apps/gym/ui/exercise_progress_screen.dart';
+import 'package:shopping_list/apps/gym/ui/workout_plot.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/load.dart';
 
-/// Per-exercise progress and the week's training, on one screen.
+/// Per-exercise progress across workouts, and this week's training.
 ///
-/// Not a dashboard. Each row is one movement: last working set, best, and
-/// what this week added. The paper sparkline is the last sessions' top sets
-/// in a row of mono numbers — order is the information.
+/// Each movement is a row with its session plot — stamps on paper, not a
+/// dashboard card. Tapping opens the full history for that lift.
 class ProgressScreen extends ConsumerWidget {
   const ProgressScreen({super.key});
 
@@ -93,7 +95,7 @@ class _EmptyProgress extends StatelessWidget {
           ),
           const SizedBox(height: Space.md),
           Text(
-            'Progress fills in once you have logged a set.',
+            'The line appears after a second workout of the same movement.',
             style: Type.body.copyWith(color: palette.faded),
           ),
         ],
@@ -112,6 +114,7 @@ class _WeekHero extends StatelessWidget {
     final palette = context.thermal;
     final dayWord = summary.daysTrained == 1 ? 'day' : 'days';
     final setWord = summary.sets == 1 ? 'set' : 'sets';
+    final trained = summary.trainedDayKeys.toSet();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,6 +127,66 @@ class _WeekHero extends StatelessWidget {
         Text(
           '${summary.daysTrained} $dayWord · ${summary.sets} $setWord',
           style: Type.caption.copyWith(color: palette.faded),
+        ),
+        const SizedBox(height: Space.md),
+        Row(
+          children: [
+            for (var i = 0; i < 7; i++) ...[
+              if (i > 0) const SizedBox(width: Space.xs),
+              Expanded(
+                child: _WeekPunch(
+                  label: _weekdayLetter(i),
+                  stamped: trained.contains(
+                    GymActivity.dayKey(
+                      summary.weekStart.add(Duration(days: i)),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  static String _weekdayLetter(int mondayOffset) {
+    const letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    return letters[mondayOffset];
+  }
+}
+
+/// A day of the week, punched if you trained. The week's day pass.
+class _WeekPunch extends StatelessWidget {
+  const _WeekPunch({required this.label, required this.stamped});
+
+  final String label;
+  final bool stamped;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    return Column(
+      children: [
+        AspectRatio(
+          aspectRatio: 1.6,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: stamped ? palette.carbon : palette.paperShade,
+              border: Border.all(
+                color: stamped ? palette.carbon : palette.perforation,
+                width: 1,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: Type.mono.copyWith(
+            color: stamped ? palette.print : palette.faded,
+            fontSize: 10,
+          ),
         ),
       ],
     );
@@ -141,42 +204,57 @@ class _ExerciseProgressRow extends StatelessWidget {
     final last = item.lastWeightG == null
         ? '—'
         : '${Load.format(item.lastWeightG!)} × ${item.lastReps}';
-    final best = _bestLabel(item);
     final lastWhen = item.lastAt == null ? '' : ' · ${_ago(item.lastAt!)}';
+    final delta = _deltaSinceLast(item.recentWorkouts);
+    final workouts = item.workoutCount == 1
+        ? '1 workout'
+        : item.workoutCount > item.recentWorkouts.length
+            ? 'last ${item.recentWorkouts.length} of ${item.workoutCount}'
+            : '${item.workoutCount} workouts';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          item.exercise.name,
-          style: Type.item.copyWith(color: palette.print),
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ExerciseProgressScreen(item: item),
         ),
-        const SizedBox(height: Space.xs),
-        Text(
-          'Last $last$lastWhen',
-          style: Type.caption.copyWith(color: palette.faded),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.xs),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.exercise.name,
+                    style: Type.item.copyWith(color: palette.print),
+                  ),
+                ),
+                Text(
+                  workouts,
+                  style: Type.mono.copyWith(color: palette.faded, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: Space.xs),
+            Text(
+              'Last $last$lastWhen',
+              style: Type.caption.copyWith(color: palette.faded),
+            ),
+            if (delta != null)
+              Text(
+                delta,
+                style: Type.caption.copyWith(color: palette.carbon),
+              ),
+            if (item.recentWorkouts.isNotEmpty) ...[
+              const SizedBox(height: Space.sm),
+              WorkoutPlot(marks: item.recentWorkouts, height: 64),
+            ],
+          ],
         ),
-        Text(
-          'Best $best'
-          '${item.weekSets == 0 ? '' : ' · this week ${Load.formatVolume(item.weekVolumeGramReps)}'}',
-          style: Type.caption.copyWith(color: palette.faded),
-        ),
-        if (item.recentTopWeights.length >= 2) ...[
-          const SizedBox(height: Space.sm),
-          _Spark(weights: item.recentTopWeights),
-        ],
-      ],
+      ),
     );
-  }
-
-  static String _bestLabel(ExerciseProgress item) {
-    if (item.bestWeightG != null && item.bestWeightG! > 0) {
-      return Load.format(item.bestWeightG!);
-    }
-    if (item.bestReps != null && item.bestReps! > 0) {
-      return '${item.bestReps} reps';
-    }
-    return '—';
   }
 
   static String _ago(DateTime at) {
@@ -191,28 +269,19 @@ class _ExerciseProgressRow extends StatelessWidget {
   }
 }
 
-/// Last sessions' top sets, oldest to newest. A row of numbers, not a chart —
-/// you can read the actual loads.
-class _Spark extends StatelessWidget {
-  const _Spark({required this.weights});
-
-  final List<int> weights;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    return Wrap(
-      spacing: Space.sm,
-      runSpacing: Space.xs,
-      children: [
-        for (var i = 0; i < weights.length; i++)
-          Text(
-            Load.formatBare(weights[i]),
-            style: Type.mono.copyWith(
-              color: i == weights.length - 1 ? palette.print : palette.faded,
-            ),
-          ),
-      ],
-    );
+String? _deltaSinceLast(List<WorkoutMark> marks) {
+  if (marks.length < 2) return null;
+  final byReps = WorkoutMark.plotByReps(marks);
+  final last = marks.last;
+  final prev = marks[marks.length - 2];
+  if (byReps) {
+    final d = last.topReps - prev.topReps;
+    if (d == 0) return 'Same reps as last workout';
+    if (d > 0) return '+$d reps from last workout';
+    return '$d reps from last workout';
   }
+  final d = last.topWeightG - prev.topWeightG;
+  if (d == 0) return 'Same load as last workout';
+  final signed = d > 0 ? '+${Load.formatBare(d)}' : Load.formatBare(d);
+  return '$signed kg from last workout';
 }

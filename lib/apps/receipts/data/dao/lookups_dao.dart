@@ -45,8 +45,14 @@ class LookupsDao {
         : ExpenseCategory(id: id, name: category.name, sort: next);
   }
 
-  Future<List<Account>> accounts() async {
-    final rows = await _db.query('accounts', orderBy: 'sort ASC, name ASC');
+  /// Archived accounts are excluded: a retired account should stop being
+  /// offered without its history going anywhere.
+  Future<List<Account>> accounts({bool includeArchived = false}) async {
+    final rows = await _db.query(
+      'accounts',
+      where: includeArchived ? null : 'archived_at IS NULL',
+      orderBy: 'sort ASC, name ASC',
+    );
     return rows.map(Account.fromMap).toList();
   }
 
@@ -125,6 +131,24 @@ class LookupsDao {
 
   Future<void> deleteAccount(int id) =>
       _db.delete('accounts', where: 'id = ?', whereArgs: [id]);
+
+  /// Retires an account and everything you could pay from it, leaving the
+  /// ledger and the slips that reference them untouched.
+  Future<void> archiveAccount(int id) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.update(
+      'accounts',
+      {'archived_at': now},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await _db.update(
+      'payment_methods',
+      {'archived_at': now},
+      where: 'account_id = ? AND archived_at IS NULL',
+      whereArgs: [id],
+    );
+  }
 
   Future<int> accountUsage(int id) async =>
       Sqflite.firstIntValue(

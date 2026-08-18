@@ -146,51 +146,63 @@ class _DaySelector extends ConsumerWidget {
     return Padding(
       padding:
           const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
-      child: Row(
+      child: Column(
         children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            tooltip: 'Previous day',
-            onPressed: () => ref.read(selectedDayProvider.notifier).state =
-                day.subtract(const Duration(days: 1)),
-          ),
-          Expanded(
-            child: InkWell(
-              onTap: () => _jump(context, ref, day),
-              child: Column(
-                children: [
-                  Text(
-                    _dayLabel(day).toUpperCase(),
-                    style: Type.eyebrow.copyWith(color: palette.faded),
-                  ),
-                  const SizedBox(height: Space.xs),
-                  Text(
-                    '$setCount $setWord',
-                    style: Type.totalDisplay.copyWith(
-                      color: palette.print,
-                      fontSize: 32,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    volume.maybeWhen(
-                      data: Load.formatVolume,
-                      orElse: () => '—',
-                    ),
-                    style: Type.caption.copyWith(color: palette.faded),
-                  ),
-                ],
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Previous day',
+                onPressed: () => ref.read(selectedDayProvider.notifier).state =
+                    day.subtract(const Duration(days: 1)),
               ),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _jump(context, ref, day),
+                  child: Column(
+                    children: [
+                      Text(
+                        _dayLabel(day).toUpperCase(),
+                        style: Type.eyebrow.copyWith(color: palette.faded),
+                      ),
+                      const SizedBox(height: Space.xs),
+                      Text(
+                        '$setCount $setWord',
+                        style: Type.totalDisplay.copyWith(
+                          color: palette.print,
+                          fontSize: 32,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        volume.maybeWhen(
+                          data: Load.formatVolume,
+                          orElse: () => '—',
+                        ),
+                        style: Type.caption.copyWith(color: palette.faded),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Next day',
+                onPressed: isToday
+                    ? null
+                    : () => ref.read(selectedDayProvider.notifier).state =
+                        day.add(const Duration(days: 1)),
+              ),
+            ],
+          ),
+          // Always on the switcher, not inside the date picker — paging back
+          // one day at a time is how you look around, not how you come home.
+          if (!isToday)
+            TextButton(
+              onPressed: () => ref.read(selectedDayProvider.notifier).state =
+                  GymActivity.startOfDay(DateTime.now()),
+              child: const Text('Return to today'),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            tooltip: 'Next day',
-            onPressed: isToday
-                ? null
-                : () => ref.read(selectedDayProvider.notifier).state =
-                    day.add(const Duration(days: 1)),
-          ),
         ],
       ),
     );

@@ -143,14 +143,20 @@ abstract final class Space {
   static const double xxl = 48;
 }
 
-/// Radius. Near-zero on paper surfaces, fully pilled on controls — the two
-/// materials must never be confusable.
+/// Radius. Three materials, never confusable: paper is square, fields are
+/// pilled wells pressed into it, and command keys are plates — the same inner
+/// score as a launcher tile.
 abstract final class Radii {
   /// Paper does not have rounded corners.
   static const Radius paper = Radius.zero;
 
-  /// Controls are unmistakably controls.
+  /// Inset fields. A well in the paper, not a key sitting on it.
   static const BorderRadius control = BorderRadius.all(Radius.circular(999));
+
+  /// Command keys — FilledButton, OutlinedButton, the hub capture, steppers.
+  /// Matches the inner corners of a launcher tile so hardware feels like one
+  /// scored block.
+  static const BorderRadius key = BorderRadius.all(Radius.circular(8));
 
   /// Receipt photos and other embedded media.
   static const BorderRadius media = BorderRadius.all(Radius.circular(4));

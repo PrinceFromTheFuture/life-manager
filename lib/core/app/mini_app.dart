@@ -69,7 +69,10 @@ abstract class MiniApp {
   /// The app's own root screen.
   Widget buildHome(BuildContext context);
 
-  /// Offered on the hub. Empty is fine.
+  /// Extra actions this app can start from elsewhere. Empty is the default.
+  ///
+  /// The hub itself no longer presents these: it has one first-class control,
+  /// Add expense. Leave this empty unless a future surface asks for it.
   List<QuickAction> quickActions(BuildContext context) => const [];
 
   /// Renders one of this app's own rows in the shared feed.

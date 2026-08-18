@@ -2,12 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import 'package:shopping_list/apps/receipts/data/finance/installment_plan.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/place_map.dart';
+import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -15,7 +18,13 @@ import 'package:shopping_list/core/util/money.dart';
 
 /// Asks before destroying a receipt photo. Used from the list swipe and from
 /// the slip itself, so the wording is learned once.
-Future<bool> confirmDeleteExpense(BuildContext context) async {
+///
+/// [hasReceipt] is false for rows a standing order wrote, where promising to
+/// delete a photo that never existed would be a small lie.
+Future<bool> confirmDeleteExpense(
+  BuildContext context, {
+  bool hasReceipt = true,
+}) async {
   final palette = context.thermal;
   return await showDialog<bool>(
         context: context,
@@ -30,8 +39,11 @@ Future<bool> confirmDeleteExpense(BuildContext context) async {
               Type.display.copyWith(fontSize: 20, color: palette.print),
           contentTextStyle: Type.body.copyWith(color: palette.print),
           title: const Text('Delete this expense?'),
-          content: const Text(
-            'The amount and the receipt photo are deleted for good.',
+          content: Text(
+            hasReceipt
+                ? 'The amount and the receipt photo are deleted for good.'
+                : 'It is deleted for good. The account keeps a line showing '
+                    'the money coming back.',
           ),
           actions: [
             TextButton(
@@ -134,7 +146,18 @@ class _Detail extends ConsumerWidget {
           value: expense.isBusiness ? 'Business' : 'Personal',
         ),
         _CategoryField(categoryId: expense.categoryId),
-        _AccountField(accountId: expense.accountId),
+        _PaidWithField(expense: expense),
+        if (expense.isSplit)
+          _Field(
+            label: 'SPLIT',
+            value: InstallmentPlan.split(
+              principalMinor: expense.amountMinor,
+              count: expense.installments,
+              interestBp: expense.interestBp,
+            ).caption,
+          ),
+        if (expense.isAutoCreated)
+          const _Field(label: 'SOURCE', value: 'Written by a standing order'),
         if ((expense.description ?? '').isNotEmpty)
           _Field(label: 'NOTE', value: expense.description!),
         if (expense.source == ExpenseSource.scanned)
@@ -157,13 +180,20 @@ class _Detail extends ConsumerWidget {
         const SizedBox(height: Space.lg),
         const TearEdge(),
         const SizedBox(height: Space.lg),
-        _ReceiptImage(relativePath: expense.receiptPath),
+        if (expense.hasReceipt)
+          _ReceiptImage(relativePath: expense.receiptPath)
+        else
+          NoReceipt(expense: expense),
         const SizedBox(height: Space.xl),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(
             onPressed: () async {
-              if (!await confirmDeleteExpense(context)) return;
+              final confirmed = await confirmDeleteExpense(
+                context,
+                hasReceipt: expense.hasReceipt,
+              );
+              if (!confirmed) return;
               if (!context.mounted) return;
               await ref.read(expensesProvider.notifier).remove(expense.id!);
               if (!context.mounted) return;
@@ -242,27 +272,104 @@ class _CategoryField extends ConsumerWidget {
   }
 }
 
-class _AccountField extends ConsumerWidget {
-  const _AccountField({required this.accountId});
+/// The payment method, falling back to the account for slips recorded before
+/// methods existed.
+class _PaidWithField extends ConsumerWidget {
+  const _PaidWithField({required this.expense});
 
-  final int? accountId;
+  final Expense expense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (accountId == null) return const SizedBox.shrink();
-    final accounts = ref.watch(accountsProvider);
+    final methodId = expense.paymentMethodId;
+    if (methodId != null) {
+      final methods = ref.watch(paymentMethodsProvider).valueOrNull;
+      final method = methods?.where((m) => m.id == methodId).firstOrNull;
+      if (method != null) {
+        return _Field(label: 'PAID WITH', value: method.label);
+      }
+    }
 
-    return accounts.maybeWhen(
-      data: (items) {
-        for (final a in items) {
-          if (a.id == accountId) {
-            return _Field(label: 'PAID WITH', value: a.label);
-          }
-        }
-        return const SizedBox.shrink();
-      },
-      orElse: () => const SizedBox.shrink(),
+    final accountId = expense.accountId;
+    if (accountId == null) return const SizedBox.shrink();
+    final accounts = ref.watch(accountsProvider).valueOrNull;
+    final account = accounts?.where((a) => a.id == accountId).firstOrNull;
+    if (account == null) return const SizedBox.shrink();
+    return _Field(label: 'PAID WITH', value: account.label);
+  }
+}
+
+/// What sits where the photo would be on a slip nobody photographed.
+///
+/// A grey box or a broken image icon would read as a failure. This says what
+/// actually happened and offers the one thing you might want — because the
+/// paper bill for a standing order does sometimes turn up later.
+class NoReceipt extends ConsumerStatefulWidget {
+  const NoReceipt({super.key, required this.expense});
+
+  final Expense expense;
+
+  @override
+  ConsumerState<NoReceipt> createState() => _NoReceiptState();
+}
+
+class _NoReceiptState extends ConsumerState<NoReceipt> {
+  bool _busy = false;
+
+  Future<void> _attach(ImageSource source) async {
+    setState(() => _busy = true);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 2000,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      await ref.read(expensesProvider.notifier).edit(
+            widget.expense,
+            receiptSourcePath: picked.path,
+          );
+    } on Exception catch (e) {
+      if (!mounted) return;
+      showPaperSnack(context, message: "Couldn't attach that photo. ($e)");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    final expense = widget.expense;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          expense.isAutoCreated
+              ? 'No receipt. A standing order wrote this one on the '
+                  '${_ordinal(expense.occurredAt.day)}.'
+              : 'No receipt on this one.',
+          style: Type.body.copyWith(color: palette.faded),
+        ),
+        const SizedBox(height: Space.md),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _attach(ImageSource.camera),
+          icon: const Icon(Icons.photo_camera_outlined, size: 18),
+          label: const Text('Photograph it'),
+        ),
+      ],
     );
+  }
+
+  static String _ordinal(int day) {
+    if (day >= 11 && day <= 13) return '${day}th';
+    return switch (day % 10) {
+      1 => '${day}st',
+      2 => '${day}nd',
+      3 => '${day}rd',
+      _ => '${day}th',
+    };
   }
 }
 

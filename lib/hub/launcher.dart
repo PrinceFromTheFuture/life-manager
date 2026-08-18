@@ -22,7 +22,7 @@ class Launcher extends StatelessWidget {
   static const int _slots = _columns * _rows;
 
   /// Width / height. Wider than square — the empty 1:1 tile was the problem.
-  static const double _aspect = 1.35;
+  static const double _aspect = 1.4; //1.1
 
   /// Corners that form the silhouette of the whole block.
   static const double _outer = 22;
@@ -137,7 +137,7 @@ class _Tile extends StatelessWidget {
                   )
               : () => openMiniApp(context, app!),
           child: Padding(
-            padding: const EdgeInsets.all(Space.lg),
+            padding: const EdgeInsets.all(Space.lg - 2),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -146,24 +146,33 @@ class _Tile extends StatelessWidget {
                   fill: slot.soon ? palette.perforation : ink,
                   glyph: slot.soon ? palette.faded : palette.paper,
                 ),
-                const SizedBox(height: Space.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        slot.title,
-                        style: Type.item.copyWith(
-                          color: slot.soon ? palette.faded : palette.print,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                const SizedBox(height: Space.xs),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      slot.title,
+                      style: Type.item.copyWith(
+                        color: slot.soon ? palette.faded : palette.print,
+                        fontFamily: Fonts.display,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
                       ),
-                      const SizedBox(height: Space.xs),
-                     
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      slot.tagline,
+                      style: Type.caption.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.faded,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -186,7 +195,7 @@ class _IconWell extends StatelessWidget {
   final Color fill;
   final Color glyph;
 
-  static const double _radius = 10;
+  static const double _radius = 8;
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +206,7 @@ class _IconWell extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(Space.sm),
-        child: Icon(icon, size: 22, color: glyph),
+        child: Icon(icon, size: 19, color: glyph),
       ),
     );
   }

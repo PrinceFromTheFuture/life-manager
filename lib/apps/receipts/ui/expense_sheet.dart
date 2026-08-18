@@ -6,11 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import 'package:shopping_list/apps/receipts/data/models/account.dart';
+import 'package:shopping_list/apps/receipts/data/finance/installment_plan.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/data/ocr/receipt_scanner.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
+import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
 import 'package:shopping_list/apps/receipts/ui/print_slip.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
@@ -60,17 +61,26 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
   AmountEntry _amount = AmountEntry();
   String? _receiptSourcePath;
   int? _categoryId;
-  int? _accountId;
+  int? _paymentMethodId;
   DateTime _occurredAt = DateTime.now();
   double? _latitude;
   double? _longitude;
   bool _isBusiness = false;
+
+  /// Almost always 1. The interface below is built entirely around keeping it
+  /// that way costing nothing.
+  int _installments = 1;
+  int _interestBp = 0;
+  bool _installmentsOpen = false;
+  bool _rateOpen = false;
+  final _rateController = TextEditingController();
 
   bool _keypadOpen = false;
   bool _showNote = false;
   bool _busy = false;
   bool _saving = false;
   bool _categoryChosenByHand = false;
+  bool _methodChosenByHand = false;
   Timer? _predictDebounce;
 
   ExpenseSource _source = ExpenseSource.manual;
@@ -93,7 +103,15 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       _noteController.text = existing.description ?? '';
       _locationController.text = existing.locationLabel ?? '';
       _categoryId = existing.categoryId;
-      _accountId = existing.accountId;
+      _paymentMethodId = existing.paymentMethodId;
+      _methodChosenByHand = true;
+      _installments = existing.installments;
+      _interestBp = existing.interestBp;
+      _installmentsOpen = existing.installments > 1;
+      _rateOpen = existing.interestBp > 0;
+      if (existing.interestBp > 0) {
+        _rateController.text = (existing.interestBp / 100).toString();
+      }
       _occurredAt = existing.occurredAt;
       _latitude = existing.latitude;
       _longitude = existing.longitude;
@@ -112,6 +130,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _capture(ImageSource.camera);
       });
+      unawaited(_preselectMethod());
     }
 
     _merchantController.addListener(_onMerchantChanged);
@@ -123,8 +142,21 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
     _merchantController.dispose();
     _noteController.dispose();
     _locationController.dispose();
+    _rateController.dispose();
     _merchantFocus.dispose();
     super.dispose();
+  }
+
+  /// Answers "paid with" before it is asked.
+  ///
+  /// People pay for almost everything the same way, so the last method used is
+  /// right nearly every time. In the common case this block now costs zero
+  /// taps, which makes the whole sheet faster than it was before payment
+  /// methods existed.
+  Future<void> _preselectMethod() async {
+    final lastUsed = await ref.read(lastUsedPaymentMethodProvider.future);
+    if (!mounted || lastUsed == null || _methodChosenByHand) return;
+    setState(() => _paymentMethodId = lastUsed);
   }
 
   // ------------------------------------------------------------------ input
@@ -302,7 +334,9 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
             merchant: merchant.isEmpty ? null : merchant,
             description: note.isEmpty ? null : note,
             categoryId: _categoryId,
-            accountId: _accountId,
+            paymentMethodId: _paymentMethodId,
+            installments: _installments,
+            interestBp: _interestBp,
             locationLabel: location.isEmpty ? null : location,
             latitude: _latitude,
             longitude: _longitude,
@@ -324,7 +358,9 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
             merchant: merchant.isEmpty ? null : merchant,
             description: note.isEmpty ? null : note,
             categoryId: _categoryId,
-            accountId: _accountId,
+            paymentMethodId: _paymentMethodId,
+            installments: _installments,
+            interestBp: _interestBp,
             locationLabel: location.isEmpty ? null : location,
             latitude: _latitude,
             longitude: _longitude,
@@ -524,12 +560,32 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
               ),
               _Block(
                 label: 'PAID WITH',
-                child: _AccountChips(
-                  selected: _accountId,
+                child: _PaidWith(
+                  selected: _paymentMethodId,
+                  installments: _installments,
+                  interestBp: _interestBp,
+                  amountMinor: _amount.agorot ?? 0,
+                  expanded: _installmentsOpen,
+                  rateOpen: _rateOpen,
+                  rateController: _rateController,
                   onSelected: (id) => setState(() {
-                    _accountId = id;
+                    _paymentMethodId = id;
+                    _methodChosenByHand = true;
                     _keypadOpen = false;
                   }),
+                  onExpand: () => setState(() {
+                    _installmentsOpen = true;
+                    _keypadOpen = false;
+                  }),
+                  onCount: (count) => setState(() {
+                    _installments = count;
+                    if (count == 1) {
+                      _interestBp = 0;
+                      _rateOpen = false;
+                    }
+                  }),
+                  onOpenRate: () => setState(() => _rateOpen = true),
+                  onRate: (bp) => setState(() => _interestBp = bp),
                 ),
               ),
               _Block(
@@ -900,29 +956,158 @@ class _CategoryChips extends ConsumerWidget {
   }
 }
 
-class _AccountChips extends ConsumerWidget {
-  const _AccountChips({required this.selected, required this.onSelected});
+/// The one block that had to get richer without getting slower.
+///
+/// Chips come pre-answered and ordered by how often you use them, so the
+/// common capture touches nothing here. The installment line only exists at all
+/// on a credit method, and even then it is one line of faded caption until you
+/// tap it — because 98 slips in 100 are a single payment, and the interface
+/// should cost what the common case costs, not what the rare one needs.
+class _PaidWith extends ConsumerWidget {
+  const _PaidWith({
+    required this.selected,
+    required this.installments,
+    required this.interestBp,
+    required this.amountMinor,
+    required this.expanded,
+    required this.rateOpen,
+    required this.rateController,
+    required this.onSelected,
+    required this.onExpand,
+    required this.onCount,
+    required this.onOpenRate,
+    required this.onRate,
+  });
 
   final int? selected;
+  final int installments;
+  final int interestBp;
+  final int amountMinor;
+  final bool expanded;
+  final bool rateOpen;
+  final TextEditingController rateController;
   final ValueChanged<int> onSelected;
+  final VoidCallback onExpand;
+  final ValueChanged<int> onCount;
+  final VoidCallback onOpenRate;
+  final ValueChanged<int> onRate;
+
+  /// The counts a card terminal actually offers. Anything else is typed into
+  /// the bank's app, not remembered here.
+  static const _counts = [1, 2, 3, 4, 6, 10, 12];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accounts = ref.watch(accountsProvider);
+    final palette = context.thermal;
+    final methods = ref.watch(paymentMethodsByUseProvider);
 
-    return accounts.maybeWhen(
-      data: (items) => Wrap(
-        spacing: Space.sm,
-        runSpacing: Space.sm,
-        children: [
-          for (final Account a in items)
-            _Chip(
-              label: a.label,
-              selected: a.id == selected,
-              onTap: () => onSelected(a.id!),
+    return methods.maybeWhen(
+      data: (items) {
+        final chosen = items.where((m) => m.id == selected).firstOrNull;
+        final plan = InstallmentPlan.split(
+          principalMinor: amountMinor,
+          count: installments,
+          interestBp: interestBp,
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: Space.sm,
+              runSpacing: Space.sm,
+              children: [
+                for (final method in items)
+                  _Chip(
+                    label: method.label,
+                    selected: method.id == selected,
+                    onTap: () => onSelected(method.id!),
+                  ),
+              ],
             ),
-        ],
-      ),
+            if (chosen != null && chosen.isCredit) ...[
+              const SizedBox(height: Space.md),
+              InkWell(
+                onTap: expanded ? null : onExpand,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Space.xs),
+                  child: Text(
+                    plan.caption,
+                    style: Type.caption.copyWith(
+                      color: installments > 1 ? palette.print : palette.faded,
+                    ),
+                  ),
+                ),
+              ),
+              if (expanded) ...[
+                const SizedBox(height: Space.sm),
+                Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  children: [
+                    for (final count in _counts)
+                      LedgerPlate(
+                        label: '$count',
+                        selected: count == installments,
+                        onTap: () => onCount(count),
+                      ),
+                  ],
+                ),
+                if (installments > 1) ...[
+                  const SizedBox(height: Space.sm),
+                  if (!rateOpen)
+                    InkWell(
+                      onTap: onOpenRate,
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.symmetric(vertical: Space.xs),
+                        child: Text(
+                          'No interest',
+                          style:
+                              Type.caption.copyWith(color: palette.faded),
+                        ),
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 72,
+                          child: TextField(
+                            controller: rateController,
+                            autofocus: true,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            style: Type.mono.copyWith(color: palette.print),
+                            cursorColor: palette.carbon,
+                            decoration: const InputDecoration(
+                              hintText: '0',
+                              filled: false,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                            ),
+                            onChanged: (text) {
+                              final percent = double.tryParse(text) ?? 0;
+                              onRate((percent * 100).round().clamp(0, 100000));
+                            },
+                          ),
+                        ),
+                        Text(
+                          '% a year, spread over the payments',
+                          style: Type.caption.copyWith(color: palette.faded),
+                        ),
+                      ],
+                    ),
+                ],
+              ],
+            ],
+          ],
+        );
+      },
       orElse: () => const SizedBox(height: 40),
     );
   }
@@ -989,6 +1174,27 @@ class _ReceiptStrip extends ConsumerWidget {
     Widget image;
     if (sourcePath != null) {
       image = Image.file(File(sourcePath!), height: 120, fit: BoxFit.cover);
+    } else if (existing != null && !existing!.hasReceipt) {
+      // A standing order wrote this one, so there is nothing to show and
+      // nothing went wrong. Say so, and offer the camera in case the paper
+      // bill has since arrived.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('RECEIPT', style: Type.eyebrow.copyWith(color: palette.faded)),
+          const SizedBox(height: Space.xs),
+          Text(
+            'No receipt. A standing order wrote this one.',
+            style: Type.body.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.sm),
+          OutlinedButton.icon(
+            onPressed: onRetake,
+            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+            label: const Text('Photograph it'),
+          ),
+        ],
+      );
     } else if (existing != null) {
       image = FutureBuilder<File>(
         future: ref

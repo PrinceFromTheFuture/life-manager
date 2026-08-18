@@ -170,7 +170,43 @@ void main() {
       expect(row.lastReps, 3);
       expect(row.weekSets, 2);
       expect(row.weekVolumeGramReps, 80000 * 8 + 100000 * 3);
-      expect(row.recentTopWeights, [100000]);
+      expect(row.recentWorkouts, hasLength(1));
+      expect(row.recentWorkouts.single.topWeightG, 100000);
+      expect(row.recentWorkouts.single.topReps, 3);
+      expect(row.workoutCount, 1);
+    });
+
+    test('tracks a movement across workouts, one mark per day', () async {
+      final squat =
+          (await repo.exercises()).firstWhere((e) => e.name == 'Squat');
+
+      await repo.logSet(
+        exerciseId: squat.id!,
+        reps: 8,
+        weightG: 80000,
+        day: DateTime(2026, 8, 6),
+      );
+      await repo.logSet(
+        exerciseId: squat.id!,
+        reps: 8,
+        weightG: 80000,
+        day: DateTime(2026, 8, 6),
+      );
+      await repo.logSet(
+        exerciseId: squat.id!,
+        reps: 5,
+        weightG: 85000,
+        day: DateTime(2026, 8, 13),
+      );
+
+      final progress = await repo.progress(DateTime(2026, 8, 13));
+      final row = progress.firstWhere((p) => p.exercise.name == 'Squat');
+      expect(row.workoutCount, 2);
+      expect(row.recentWorkouts, hasLength(2));
+      expect(row.recentWorkouts[0].day, DateTime(2026, 8, 6));
+      expect(row.recentWorkouts[0].topWeightG, 80000);
+      expect(row.recentWorkouts[0].sets, 2);
+      expect(row.recentWorkouts[1].topWeightG, 85000);
     });
 
     test('week summary counts local days, not UTC buckets', () async {

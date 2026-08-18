@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/receipts/receipts_app.dart';
+import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/core/activity/providers.dart';
+import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/app/registry.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/hub/account_screen.dart';
 import 'package:shopping_list/hub/activity_feed.dart';
 import 'package:shopping_list/hub/launcher.dart';
-import 'package:shopping_list/hub/quick_action_drawer.dart';
 
 /// The shell's home screen.
 ///
-/// Three jobs, in priority order: get into an app in one tap, start something
-/// without opening an app first, and show what has been happening across all
-/// of them. It carries no colour of its own — every coloured mark on this
-/// screen belongs to a mini-app, which is what makes the ink stamps readable
-/// as identity rather than decoration.
+/// Three jobs, in priority order: get into an app in one tap, photograph a
+/// receipt without opening Receipts first, and show what has been happening
+/// across all of them. It carries no colour of its own — every coloured mark
+/// on this screen belongs to a mini-app, which is what makes the ink stamps
+/// readable as identity rather than decoration.
 class HubScreen extends ConsumerWidget {
   const HubScreen({super.key});
 
@@ -26,9 +29,21 @@ class HubScreen extends ConsumerWidget {
     final palette = context.thermal;
     final registry = ref.watch(registryProvider);
     final feed = ref.watch(activityFeedProvider);
+    const receipts = ReceiptsApp();
+    final brightness = Theme.of(context).brightness;
+    final receiptsInk = receipts.ink.of(brightness);
+    final onReceiptsInk =
+        brightness == Brightness.light ? palette.paper : palette.print;
 
     void openAccount() => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+        );
+
+    void addExpense() => openMiniApp(
+          context,
+          receipts,
+          initialScreen: (_) => const ExpenseSheet(),
+          fullscreenDialog: true,
         );
 
     return Scaffold(
@@ -91,15 +106,25 @@ class HubScreen extends ConsumerWidget {
           ],
         ),
       ),
-      // A single, fixed control rather than a row that grows one button per
-      // app quick action — that row would already be crowded at two apps and
-      // unusable at five. Everything it offers lives in the drawer instead.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showQuickActions(context),
-        tooltip: 'Start something',
-        backgroundColor: palette.print,
-        foregroundColor: palette.paper,
-        child: const Icon(Icons.bolt),
+      // Photographing a receipt cannot wait for you to open Receipts. This is
+      // that app's capture, on the hub, in that app's ink — one tap from the
+      // pavement after paying. It says what it does; a camera-only mark would
+      // have to be learned.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: addExpense,
+        tooltip: 'Add expense',
+        backgroundColor: receiptsInk,
+        foregroundColor: onReceiptsInk,
+        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+        label: const Text('Add expense'),
+        shape: InkPlateBorder(
+          borderRadius: Radii.key,
+          side: BorderSide(
+            color: Color.lerp(receiptsInk, palette.print, 0.38)!,
+            width: 1.5,
+          ),
+          insetColor: Plate.inset(onReceiptsInk),
+        ),
       ),
     );
   }

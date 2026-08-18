@@ -45,8 +45,7 @@ class ApiKeyStore {
 
   final FlutterSecureStorage _storage;
 
-  // v11's default constructor is already AES-GCM with RSA-OAEP key
-  // wrapping — there's no flag to opt into; this exists only as the single
+  // AES-GCM with RSA-OAEP key wrapping. This exists only as the single
   // place every call site points at, in case that ever needs to change.
   static const AndroidOptions _androidOptions = AndroidOptions.defaultOptions;
 

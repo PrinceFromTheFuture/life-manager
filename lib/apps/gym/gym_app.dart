@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shopping_list/apps/gym/data/gym_activity.dart';
 import 'package:shopping_list/apps/gym/data/gym_migrations.dart';
 import 'package:shopping_list/apps/gym/ui/day_pass_screen.dart';
-import 'package:shopping_list/apps/gym/ui/record_set_screen.dart';
 import 'package:shopping_list/core/activity/activity_entry.dart';
 import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
@@ -40,20 +39,11 @@ class GymApp implements MiniApp {
   @override
   Widget buildHome(BuildContext context) => const DayPassScreen();
 
-  /// Worth a hub shortcut, like receipts.
-  ///
-  /// The value of this app is logging the set you just finished, while you
-  /// are still standing at the rack. Making that one tap from the home
-  /// screen rather than two is the difference between a training log and a
-  /// thing you mean to fill in later.
+  /// None. The hub's one shortcut is capturing a receipt — that cannot wait.
+  /// Recording a set lives on the day pass, where the last load is already
+  /// waiting.
   @override
-  List<QuickAction> quickActions(BuildContext context) => [
-        QuickAction(
-          label: 'Record a set',
-          icon: Icons.fitness_center_outlined,
-          builder: (_) => RecordSetScreen(forDay: DateTime.now()),
-        ),
-      ];
+  List<QuickAction> quickActions(BuildContext context) => const [];
 
   @override
   Widget buildActivityRow(BuildContext context, ActivityEntry entry) {

@@ -18,6 +18,14 @@ abstract final class Money {
     return '${negative ? '-' : ''}$symbol$whole.$frac';
   }
 
+  /// Formats with an explicit sign on both directions: `+₪21,300.00`.
+  ///
+  /// Used wherever money moves in two directions in the same column — the
+  /// account ledger, income rows — because a bare number there is ambiguous in
+  /// a way that a bare expense amount never is.
+  static String formatSigned(int agorot) =>
+      agorot < 0 ? format(agorot) : '+${format(agorot)}';
+
   /// Formats without the symbol, for use next to an explicit currency label.
   static String formatBare(int agorot) {
     final abs = agorot.abs();

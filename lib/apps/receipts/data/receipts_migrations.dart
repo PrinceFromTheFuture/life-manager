@@ -104,5 +104,178 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         ''',
       ],
     ),
+
+    // The financial manager. An account is where money actually sits; a
+    // payment method is a way of reaching it, and the two are separate because
+    // one account can be reached three ways (transfer, debit card, credit
+    // card) with completely different timing.
+    Migration(
+      version: 3,
+      statements: [
+        // An account now carries a starting point, because a balance derived
+        // from entries alone is only correct if the ledger goes back to the
+        // day the account was opened, which it never does.
+        '''
+        ALTER TABLE accounts ADD COLUMN opening_minor INTEGER NOT NULL DEFAULT 0
+        ''',
+        'ALTER TABLE accounts ADD COLUMN opened_at INTEGER',
+        // Archived rather than deleted: a closed card still owns the history
+        // of everything charged to it.
+        'ALTER TABLE accounts ADD COLUMN archived_at INTEGER',
+
+        '''
+        CREATE TABLE IF NOT EXISTS payment_methods (
+          id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id         INTEGER NOT NULL
+                                     REFERENCES accounts(id) ON DELETE CASCADE,
+          name               TEXT    NOT NULL,
+
+          -- 'direct' leaves the account at the moment of purchase. 'indirect'
+          -- collects until the statement day and then leaves in one go.
+          settlement         TEXT    NOT NULL DEFAULT 'direct'
+                                     CHECK (settlement IN ('direct', 'indirect')),
+
+          -- Both only meaningful for 'indirect', and both optional even then:
+          -- plenty of cards have no limit worth tracking.
+          statement_day      INTEGER,
+          credit_limit_minor INTEGER,
+
+          last4              TEXT,
+          sort               INTEGER NOT NULL DEFAULT 0,
+          archived_at        INTEGER,
+          created_at         INTEGER NOT NULL DEFAULT 0
+        )
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS recurring_rules (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          kind              TEXT    NOT NULL DEFAULT 'expense'
+                                    CHECK (kind IN ('expense', 'income')),
+          name              TEXT    NOT NULL,
+          amount_minor      INTEGER NOT NULL,
+          category_id       INTEGER REFERENCES expense_categories(id) ON DELETE SET NULL,
+          payment_method_id INTEGER REFERENCES payment_methods(id) ON DELETE SET NULL,
+          account_id        INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+          day_of_month      INTEGER NOT NULL,
+          is_business       INTEGER NOT NULL DEFAULT 0,
+          note              TEXT,
+          starts_on         INTEGER NOT NULL,
+          ends_on           INTEGER,
+
+          -- The high-water mark of the sweep. Everything about idempotency
+          -- hangs off this one column: the materializer only ever looks
+          -- forward from here, so running it twice in a day writes nothing the
+          -- second time.
+          last_run_on       INTEGER,
+
+          active            INTEGER NOT NULL DEFAULT 1,
+          created_at        INTEGER NOT NULL
+        )
+        ''',
+
+        '''
+        CREATE TABLE IF NOT EXISTS incomes (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          occurred_at       INTEGER NOT NULL,
+          amount_minor      INTEGER NOT NULL,
+          source_name       TEXT    NOT NULL,
+          account_id        INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+          note              TEXT,
+          recurring_rule_id INTEGER REFERENCES recurring_rules(id) ON DELETE SET NULL,
+          created_at        INTEGER NOT NULL
+        )
+        ''',
+
+        // Append-only. Nothing in the app issues an UPDATE or a DELETE against
+        // this table: a correction is a new row of kind 'reversal' pointing at
+        // the row it undoes. That is what makes a balance reproducible from
+        // history rather than a number someone edited.
+        '''
+        CREATE TABLE IF NOT EXISTS account_entries (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id   INTEGER NOT NULL
+                               REFERENCES accounts(id) ON DELETE CASCADE,
+          occurred_at  INTEGER NOT NULL,
+
+          -- Signed. Negative leaves the account, positive arrives.
+          amount_minor INTEGER NOT NULL,
+
+          kind         TEXT    NOT NULL
+                               CHECK (kind IN ('opening', 'expense', 'income',
+                                               'settlement', 'reversal',
+                                               'adjustment')),
+          ref_table    TEXT,
+          ref_id       INTEGER,
+          reverses_id  INTEGER REFERENCES account_entries(id),
+          note         TEXT,
+          created_at   INTEGER NOT NULL
+        )
+        ''',
+
+        'ALTER TABLE expenses ADD COLUMN payment_method_id INTEGER',
+        'ALTER TABLE expenses ADD COLUMN installments INTEGER NOT NULL DEFAULT 1',
+        // Annual nominal rate in basis points. 600 is 6% a year.
+        'ALTER TABLE expenses ADD COLUMN interest_bp INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE expenses ADD COLUMN recurring_rule_id INTEGER',
+
+        '''
+        CREATE INDEX IF NOT EXISTS idx_payment_methods_account
+          ON payment_methods(account_id, sort)
+        ''',
+        '''
+        CREATE INDEX IF NOT EXISTS idx_account_entries_account
+          ON account_entries(account_id, occurred_at, id)
+        ''',
+        // The sweep asks "has this statement already settled?" on every launch.
+        '''
+        CREATE INDEX IF NOT EXISTS idx_account_entries_ref
+          ON account_entries(ref_table, ref_id, kind)
+        ''',
+        '''
+        CREATE INDEX IF NOT EXISTS idx_expenses_method
+          ON expenses(payment_method_id, occurred_at DESC)
+        ''',
+        '''
+        CREATE INDEX IF NOT EXISTS idx_incomes_recent
+          ON incomes(occurred_at DESC)
+        ''',
+
+        // --------------------------------------------------------- backfill
+
+        // Every account that already exists gets one direct payment method
+        // carrying its name, so nothing in the app has to cope with an account
+        // that cannot be paid from.
+        '''
+        INSERT INTO payment_methods
+          (account_id, name, settlement, last4, sort, created_at)
+        SELECT id, name, 'direct', last4, 0, CAST(strftime('%s','now') AS INTEGER) * 1000
+        FROM accounts
+        ''',
+
+        // Existing slips keep their "paid with" by pointing at the method that
+        // was just created for their account.
+        '''
+        UPDATE expenses SET payment_method_id = (
+          SELECT pm.id FROM payment_methods pm
+          WHERE pm.account_id = expenses.account_id
+          ORDER BY pm.id LIMIT 1
+        )
+        WHERE account_id IS NOT NULL
+        ''',
+
+        // And every one of those slips becomes a ledger entry, so a balance is
+        // meaningful the first time Accounts is opened rather than only after
+        // the next purchase. All backfilled methods are direct, so every one of
+        // these really did leave the account when it happened.
+        '''
+        INSERT INTO account_entries
+          (account_id, occurred_at, amount_minor, kind, ref_table, ref_id, created_at)
+        SELECT account_id, occurred_at, -amount_minor, 'expense', 'expenses', id, created_at
+        FROM expenses
+        WHERE account_id IS NOT NULL
+        ''',
+      ],
+    ),
   ],
 );

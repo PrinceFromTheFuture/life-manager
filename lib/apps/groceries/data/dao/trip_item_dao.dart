@@ -39,15 +39,45 @@ class TripItemDao {
     return rows.isEmpty ? null : TripItem.fromMap(rows.first);
   }
 
-  Future<void> setPicked(int itemId, bool picked) => _db.update(
+  Future<void> setPicked(int itemId, bool picked) async {
+    if (!picked) {
+      await _db.update(
         'trip_items',
-        {
-          'is_picked': picked ? 1 : 0,
-          'picked_at': picked ? DateTime.now().millisecondsSinceEpoch : null,
-        },
+        {'is_picked': 0, 'picked_at': null},
         where: 'id = ?',
         whereArgs: [itemId],
       );
+      return;
+    }
+
+    final rows = await _db.query(
+      'trip_items',
+      columns: ['trip_id'],
+      where: 'id = ?',
+      whereArgs: [itemId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final tripId = rows.first['trip_id']! as int;
+    final last = Sqflite.firstIntValue(
+      await _db.rawQuery(
+        'SELECT MAX(picked_at) FROM trip_items '
+        'WHERE trip_id = ? AND is_picked = 1',
+        [tripId],
+      ),
+    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Same-millisecond ticks would otherwise fall back to insert order,
+    // which is the planning list — the opposite of a store walk.
+    final at = last == null ? now : (now > last ? now : last + 1);
+
+    await _db.update(
+      'trip_items',
+      {'is_picked': 1, 'picked_at': at},
+      where: 'id = ?',
+      whereArgs: [itemId],
+    );
+  }
 
   Future<void> setQuantity(int itemId, double quantity, {String? unit}) =>
       _db.update(
@@ -79,4 +109,38 @@ class TripItemDao {
         where: 'trip_id = ?',
         whereArgs: [tripId],
       );
+
+  /// Completed shops as pick walks, oldest first.
+  ///
+  /// Each inner list is the product ids in the order they were ticked on
+  /// that trip. The planning list never sees this.
+  Future<List<List<int>>> pickWalks() async {
+    final rows = await _db.rawQuery(
+      '''
+      SELECT i.trip_id, i.product_id
+      FROM trip_items i
+      JOIN trips t ON t.id = i.trip_id
+      WHERE t.status = 'completed'
+        AND i.is_picked = 1
+        AND i.product_id IS NOT NULL
+        AND i.picked_at IS NOT NULL
+      ORDER BY t.completed_at ASC, t.id ASC, i.picked_at ASC, i.id ASC
+      ''',
+    );
+
+    final walks = <int, List<int>>{};
+    final order = <int>[];
+    for (final row in rows) {
+      final tripId = row['trip_id']! as int;
+      final productId = row['product_id']! as int;
+      var walk = walks[tripId];
+      if (walk == null) {
+        walk = [];
+        walks[tripId] = walk;
+        order.add(tripId);
+      }
+      walk.add(productId);
+    }
+    return [for (final id in order) walks[id]!];
+  }
 }

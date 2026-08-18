@@ -65,9 +65,9 @@ class LocationService {
   /// a usable record of where it happened even without a readable name.
   Future<String?> _describe(double latitude, double longitude) async {
     try {
-      // geocoding 5 moved from top-level functions to an instance API.
-      final marks =
-          await Geocoding().placemarkFromCoordinates(latitude, longitude);
+      // geocoding 4 uses top-level functions; 5 moved to an instance API
+      // that needs Dart 3.8, which this Flutter SDK does not ship.
+      final marks = await placemarkFromCoordinates(latitude, longitude);
       if (marks.isEmpty) return null;
       final mark = marks.first;
 

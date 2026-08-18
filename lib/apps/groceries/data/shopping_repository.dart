@@ -4,6 +4,7 @@ import 'package:shopping_list/apps/groceries/data/groceries_activity.dart';
 import 'package:shopping_list/core/activity/activity_dao.dart';
 import 'package:shopping_list/core/activity/activity_entry.dart';
 
+import 'package:shopping_list/apps/groceries/data/aisle_memory.dart';
 import 'package:shopping_list/apps/groceries/data/dao/product_dao.dart';
 import 'package:shopping_list/apps/groceries/data/dao/trip_dao.dart';
 import 'package:shopping_list/apps/groceries/data/dao/trip_item_dao.dart';
@@ -16,8 +17,8 @@ import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 /// The active shopping list: the open trip and everything on it.
 ///
 /// There is no separate "current list" concept in this app — the list the user
-/// looks at *is* the active trip, which is what makes checkout a state change
-/// rather than a copy.
+/// looks at *is* the active trip. Checkout closes that trip; anything still
+/// unpicked is copied onto a new one so it stays on the list.
 class ActiveList {
   const ActiveList({required this.trip, required this.items});
 
@@ -58,6 +59,11 @@ class ShoppingRepository {
     if (trip == null) return ActiveList.empty;
     return ActiveList(trip: trip, items: await items.forTrip(trip.id!));
   }
+
+  /// Layout learned from completed shops. Empty until the second pick of
+  /// the first filed trip — one tick teaches nothing.
+  Future<AisleMemory> aisleMemory() async =>
+      AisleMemory.fromWalks(await items.pickWalks());
 
   Future<List<Product>> searchProducts(String query, {int limit = 8}) =>
       products.search(query, limit: limit);
@@ -158,13 +164,17 @@ class ShoppingRepository {
     if (existing != null) await images.delete(existing);
   }
 
-  /// Closes out the trip. After this the main list is empty and the next added
-  /// item opens a fresh trip.
+  /// Closes out the trip.
   ///
-  /// The hub feed entry is written **in the same transaction** as the status
-  /// change. Writing it afterwards would mean a crash in between leaves either
-  /// a completed trip missing from history, or a feed claiming a trip that is
-  /// still open.
+  /// Picked items stay on the completed trip as history. Anything still
+  /// unpicked is copied onto a new active trip so it remains on the shopping
+  /// list. If everything was picked, the list is empty and the next added item
+  /// opens a fresh trip.
+  ///
+  /// The hub feed entry and leftover copy are written **in the same
+  /// transaction** as the status change. Writing them afterwards would mean a
+  /// crash in between leaves a completed trip missing from history, leftovers
+  /// gone from the list, or a feed claiming a trip that is still open.
   Future<void> completeTrip({
     required int tripId,
     required int totalMinor,
@@ -176,6 +186,7 @@ class ShoppingRepository {
 
       final trip = await tripDao.byId(tripId);
       final items = await itemDao.forTrip(tripId);
+      final leftover = items.where((i) => !i.isPicked).toList();
 
       await tripDao.complete(
         tripId: tripId,
@@ -184,12 +195,32 @@ class ShoppingRepository {
         note: note,
       );
 
+      if (leftover.isNotEmpty) {
+        final next = await tripDao.ensureActive();
+        for (var i = 0; i < leftover.length; i++) {
+          final item = leftover[i];
+          await itemDao.insert(
+            TripItem(
+              tripId: next.id!,
+              productId: item.productId,
+              nameSnapshot: item.nameSnapshot,
+              quantity: item.quantity,
+              unit: item.unit,
+              sortOrder: i,
+            ),
+          );
+        }
+      }
+
       await ActivityWriter(txn).write(
         ActivityEntry(
           appId: GroceryActivity.appId,
           kind: GroceryActivity.tripCompleted,
           title: note != null && note.isNotEmpty ? note : 'Shopping trip',
-          subtitle: '${items.length} ${items.length == 1 ? 'item' : 'items'}',
+          subtitle: _tripCompletedSubtitle(
+            total: items.length,
+            leftover: leftover.length,
+          ),
           amountMinor: totalMinor,
           occurredAt: DateTime.now(),
           refTable: GroceryActivity.tripsTable,
@@ -197,6 +228,20 @@ class ShoppingRepository {
         ),
       );
     });
+  }
+
+  static String _tripCompletedSubtitle({
+    required int total,
+    required int leftover,
+  }) {
+    if (leftover == 0) {
+      return '$total ${total == 1 ? 'item' : 'items'}';
+    }
+    final bought = total - leftover;
+    final stay =
+        leftover == 1 ? '1 stays on the list' : '$leftover stay on the list';
+    if (bought == 0) return stay;
+    return '$bought bought · $stay';
   }
 
   /// Deletes a past trip, its receipt image, and its entry in the hub feed.

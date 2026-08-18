@@ -111,8 +111,10 @@ void main() {
   });
 
   group('checkout', () {
-    test('completing empties the active list and files the trip', () async {
-      await repo.addItem('Milk');
+    test('completing with everything picked empties the list and files the trip',
+        () async {
+      final milk = await repo.addItem('Milk');
+      await repo.setPicked(milk.id!, picked: true);
       final trip = (await repo.loadActiveList()).trip!;
 
       await repo.completeTrip(tripId: trip.id!, totalMinor: 14250);
@@ -125,8 +127,32 @@ void main() {
       expect(history.single.itemCount, 1);
     });
 
+    test('unpicked items stay on a new list after checkout', () async {
+      final milk = await repo.addItem('Milk');
+      await repo.addItem('Bread', quantity: 2, unit: 'loaves');
+      await repo.setPicked(milk.id!, picked: true);
+
+      final trip = (await repo.loadActiveList()).trip!;
+      await repo.completeTrip(tripId: trip.id!, totalMinor: 1000);
+
+      final list = await repo.loadActiveList();
+      expect(list.trip, isNotNull);
+      expect(list.trip!.id, isNot(trip.id));
+      expect(list.items, hasLength(1));
+      expect(list.items.single.nameSnapshot, 'Bread');
+      expect(list.items.single.quantity, 2);
+      expect(list.items.single.unit, 'loaves');
+      expect(list.items.single.isPicked, isFalse);
+
+      // History still records what was on the list that shop, found or not.
+      final (_, historyItems) = (await repo.loadTrip(trip.id!))!;
+      expect(historyItems.map((i) => i.nameSnapshot), ['Milk', 'Bread']);
+      expect(historyItems.where((i) => i.isPicked).single.nameSnapshot, 'Milk');
+    });
+
     test('the next item after checkout opens a fresh trip', () async {
-      await repo.addItem('Milk');
+      final milk = await repo.addItem('Milk');
+      await repo.setPicked(milk.id!, picked: true);
       final first = (await repo.loadActiveList()).trip!;
       await repo.completeTrip(tripId: first.id!, totalMinor: 1000);
 
@@ -143,6 +169,54 @@ void main() {
       expect(
         () => database.db.insert('trips', Trip.start().toMap()),
         throwsA(isA<DatabaseException>()),
+      );
+    });
+  });
+
+  group('aisle memory', () {
+    test('pick-up order follows how the last shop was walked', () async {
+      final milk = await repo.addItem('Milk');
+      final bread = await repo.addItem('Bread');
+      final apples = await repo.addItem('Apples');
+
+      await repo.setPicked(apples.id!, picked: true);
+      await repo.setPicked(bread.id!, picked: true);
+      await repo.setPicked(milk.id!, picked: true);
+
+      final trip = (await repo.loadActiveList()).trip!;
+      await repo.completeTrip(tripId: trip.id!, totalMinor: 1000);
+
+      await repo.addItem('Milk');
+      await repo.addItem('Bread');
+      await repo.addItem('Apples');
+
+      final list = await repo.loadActiveList();
+      final arranged = (await repo.aisleMemory()).arrange(
+        list.toBuy,
+        productId: (i) => i.productId,
+        listOrder: (i) => i.sortOrder,
+      );
+      expect(
+        arranged.map((i) => i.nameSnapshot),
+        ['Apples', 'Bread', 'Milk'],
+      );
+    });
+
+    test('the planning list is not rearranged', () async {
+      final milk = await repo.addItem('Milk');
+      final bread = await repo.addItem('Bread');
+      await repo.setPicked(bread.id!, picked: true);
+      await repo.setPicked(milk.id!, picked: true);
+      await repo.completeTrip(
+        tripId: (await repo.loadActiveList()).trip!.id!,
+        totalMinor: 1,
+      );
+
+      await repo.addItem('Milk');
+      await repo.addItem('Bread');
+      expect(
+        (await repo.loadActiveList()).items.map((i) => i.nameSnapshot),
+        ['Milk', 'Bread'],
       );
     });
   });

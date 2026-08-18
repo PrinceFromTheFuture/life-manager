@@ -60,13 +60,26 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
   void _apply(Exercise exercise) {
     _exerciseId = exercise.id;
     _didPrefill = true;
-    _load = exercise.lastWeightG != null
-        ? LoadEntry.fromGrams(exercise.lastWeightG!)
-        : LoadEntry();
-    _reps = exercise.lastReps != null
-        ? RepsEntry.fromValue(exercise.lastReps!)
-        : RepsEntry.fromValue(8);
+    _load = (exercise.lastWeightG != null
+            ? LoadEntry.fromGrams(exercise.lastWeightG!)
+            : LoadEntry())
+        .pendingReplace;
+    _reps = (exercise.lastReps != null
+            ? RepsEntry.fromValue(exercise.lastReps!)
+            : RepsEntry.fromValue(8))
+        .pendingReplace;
     _field = KeypadField.weight;
+  }
+
+  void _focus(KeypadField field) {
+    setState(() {
+      _field = field;
+      if (field == KeypadField.weight) {
+        _load = _load.pendingReplace;
+      } else {
+        _reps = _reps.pendingReplace;
+      }
+    });
   }
 
   void _select(Exercise exercise) {
@@ -103,7 +116,13 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
         message: "That didn't save. Try again. ($e)",
       );
     } finally {
-      if (mounted) setState(() => _logging = false);
+      if (mounted) {
+        setState(() {
+          _logging = false;
+          _load = _load.pendingReplace;
+          _reps = _reps.pendingReplace;
+        });
+      }
     }
   }
 
@@ -169,7 +188,7 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
                         load: _load,
                         reps: _reps,
                         field: _field,
-                        onField: (f) => setState(() => _field = f),
+                        onField: _focus,
                         onNudge: _nudge,
                         onSwitch: () => setState(() {
                           _exerciseId = null;

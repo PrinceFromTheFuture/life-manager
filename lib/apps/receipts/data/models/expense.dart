@@ -18,6 +18,10 @@ class Expense {
     this.description,
     this.categoryId,
     this.accountId,
+    this.paymentMethodId,
+    this.installments = 1,
+    this.interestBp = 0,
+    this.recurringRuleId,
     this.locationLabel,
     this.latitude,
     this.longitude,
@@ -44,7 +48,25 @@ class Expense {
 
   final String? description;
   final int? categoryId;
+
+  /// Which account this drained. Kept as a mirror of the payment method's
+  /// account so export, statistics and backup keep reading one column rather
+  /// than joining through a table that did not exist when they were written.
   final int? accountId;
+
+  /// What you paid with. The source of truth; [accountId] follows from it.
+  final int? paymentMethodId;
+
+  /// How many payments the charge was split across. Almost always 1 — see
+  /// the installment line in the expense sheet for why this is kept quiet.
+  final int installments;
+
+  /// Annual nominal interest rate in basis points. 600 is 6% a year.
+  final int interestBp;
+
+  /// Set when a standing order wrote this rather than you. Such a row has no
+  /// receipt, and the UI says so rather than showing a broken photo.
+  final int? recurringRuleId;
 
   /// A readable place, reverse-geocoded from [latitude]/[longitude] but freely
   /// editable — GPS puts you next door often enough that overriding has to be
@@ -74,6 +96,13 @@ class Expense {
 
   String get amountLabel => Money.format(amountMinor);
 
+  bool get isAutoCreated => recurringRuleId != null;
+
+  bool get isSplit => installments > 1;
+
+  /// Auto-created rows and drafts carry no photo.
+  bool get hasReceipt => receiptPath.isNotEmpty;
+
   /// What the row shows as its heading. Falls back rather than rendering an
   /// empty line.
   String get title {
@@ -94,6 +123,10 @@ class Expense {
         description: m['description'] as String?,
         categoryId: m['category_id'] as int?,
         accountId: m['account_id'] as int?,
+        paymentMethodId: m['payment_method_id'] as int?,
+        installments: (m['installments'] as int?) ?? 1,
+        interestBp: (m['interest_bp'] as int?) ?? 0,
+        recurringRuleId: m['recurring_rule_id'] as int?,
         locationLabel: m['location_label'] as String?,
         latitude: (m['latitude'] as num?)?.toDouble(),
         longitude: (m['longitude'] as num?)?.toDouble(),
@@ -117,6 +150,10 @@ class Expense {
         'description': description,
         'category_id': categoryId,
         'account_id': accountId,
+        'payment_method_id': paymentMethodId,
+        'installments': installments,
+        'interest_bp': interestBp,
+        'recurring_rule_id': recurringRuleId,
         'location_label': locationLabel,
         'latitude': latitude,
         'longitude': longitude,
@@ -137,6 +174,9 @@ class Expense {
     String? description,
     int? categoryId,
     int? accountId,
+    int? paymentMethodId,
+    int? installments,
+    int? interestBp,
     String? locationLabel,
     double? latitude,
     double? longitude,
@@ -146,6 +186,9 @@ class Expense {
     String? ocrModel,
     bool? isBusiness,
     DateTime? updatedAt,
+    /// Clears both the method and the account it mirrored — needed because
+    /// "paid with nothing recorded" is a real state the sheet can return to.
+    bool clearPaymentMethod = false,
   }) =>
       Expense(
         id: id ?? this.id,
@@ -155,7 +198,13 @@ class Expense {
         merchant: merchant ?? this.merchant,
         description: description ?? this.description,
         categoryId: categoryId ?? this.categoryId,
-        accountId: accountId ?? this.accountId,
+        accountId: clearPaymentMethod ? null : (accountId ?? this.accountId),
+        paymentMethodId: clearPaymentMethod
+            ? null
+            : (paymentMethodId ?? this.paymentMethodId),
+        installments: installments ?? this.installments,
+        interestBp: interestBp ?? this.interestBp,
+        recurringRuleId: recurringRuleId,
         locationLabel: locationLabel ?? this.locationLabel,
         latitude: latitude ?? this.latitude,
         longitude: longitude ?? this.longitude,

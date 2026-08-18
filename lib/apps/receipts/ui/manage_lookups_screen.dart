@@ -1,82 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 
-enum LookupKind { category, account }
-
-/// One entry in either editable list — just enough to render and act on.
-class _Row {
-  const _Row({required this.id, required this.name, required this.sort});
-
-  final int id;
-  final String name;
-  final int sort;
-}
-
-/// Add, rename, reorder and remove the categories or the accounts.
+/// Add, rename, reorder and remove the expense categories.
 ///
-/// One screen for both lists rather than two near-identical ones: the two
-/// differ only in which words they use and which provider they read, so a
-/// single [LookupKind] parameter carries that difference and everything else
-/// — the drag handle, the swipe, the rename dialog, the usage-aware delete
-/// warning — is written once.
+/// This screen used to serve accounts too. Accounts outgrew a name and a sort
+/// order — they carry a balance, a ledger and the methods you pay from them —
+/// so they moved to their own section, and this one went back to doing the one
+/// thing a flat list of names needs.
 class ManageLookupsScreen extends ConsumerWidget {
-  const ManageLookupsScreen({super.key, required this.kind});
-
-  final LookupKind kind;
-
-  String get _title =>
-      kind == LookupKind.category ? 'Expense categories' : 'Accounts';
-
-  String get _addHint =>
-      kind == LookupKind.category ? 'New category name' : 'New account name';
-
-  String get _emptyText =>
-      kind == LookupKind.category ? 'No categories yet.' : 'No accounts yet.';
+  const ManageLookupsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
-    final AsyncValue<List<_Row>> source = kind == LookupKind.category
-        ? ref.watch(categoriesProvider).whenData(
-              (items) => [
-                for (final c in items)
-                  _Row(id: c.id!, name: c.name, sort: c.sort),
-              ],
-            )
-        : ref.watch(accountsProvider).whenData(
-              (items) => [
-                for (final a in items)
-                  _Row(id: a.id!, name: a.name, sort: a.sort),
-              ],
-            );
 
     return Scaffold(
       backgroundColor: palette.paper,
-      appBar: AppBar(title: Text(_title)),
-      body: source.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
-        ),
-        data: (rows) => rows.isEmpty
-            ? Center(
-                child: Text(
-                  _emptyText,
-                  style: Type.body.copyWith(color: palette.faded),
-                ),
-              )
-            : _ReorderableList(kind: kind, rows: rows),
-      ),
-      bottomNavigationBar: SafeArea(
+      appBar: AppBar(title: const Text('Expense categories')),
+      body: ref.watch(categoriesProvider).when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+              child: Text(
+                '$e',
+                style: Type.caption.copyWith(color: palette.faded),
+              ),
+            ),
+            data: (rows) => rows.isEmpty
+                ? Center(
+                    child: Text(
+                      'No categories yet.',
+                      style: Type.body.copyWith(color: palette.faded),
+                    ),
+                  )
+                : _ReorderableList(rows: rows),
+          ),
+      bottomNavigationBar: const SafeArea(
         child: Padding(
           padding:
-              const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
-          child: _AddRow(kind: kind, hint: _addHint),
+              EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
+          child: _AddRow(),
         ),
       ),
     );
@@ -84,10 +52,9 @@ class ManageLookupsScreen extends ConsumerWidget {
 }
 
 class _ReorderableList extends ConsumerWidget {
-  const _ReorderableList({required this.kind, required this.rows});
+  const _ReorderableList({required this.rows});
 
-  final LookupKind kind;
-  final List<_Row> rows;
+  final List<ExpenseCategory> rows;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,17 +63,12 @@ class _ReorderableList extends ConsumerWidget {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: Space.md),
       itemCount: rows.length,
-      // onReorderItem's newIndex already accounts for the removed item at
-      // oldIndex, unlike the deprecated onReorder — no manual adjustment.
-      onReorderItem: (oldIndex, newIndex) {
-        final ids = rows.map((r) => r.id).toList();
+      onReorder: (oldIndex, newIndex) {
+        if (newIndex > oldIndex) newIndex -= 1;
+        final ids = rows.map((r) => r.id!).toList();
         final id = ids.removeAt(oldIndex);
         ids.insert(newIndex, id);
-        if (kind == LookupKind.category) {
-          controller.reorderCategories(ids);
-        } else {
-          controller.reorderAccounts(ids);
-        }
+        controller.reorderCategories(ids);
       },
       itemBuilder: (context, index) {
         final row = rows[index];
@@ -115,7 +77,7 @@ class _ReorderableList extends ConsumerWidget {
           color: context.thermal.paper,
           child: Column(
             children: [
-              _LookupTile(kind: kind, row: row),
+              _LookupTile(row: row),
               const PerforatedRule(indent: Space.lg),
             ],
           ),
@@ -126,10 +88,9 @@ class _ReorderableList extends ConsumerWidget {
 }
 
 class _LookupTile extends ConsumerWidget {
-  const _LookupTile({required this.kind, required this.row});
+  const _LookupTile({required this.row});
 
-  final LookupKind kind;
-  final _Row row;
+  final ExpenseCategory row;
 
   Future<void> _rename(BuildContext context, WidgetRef ref) async {
     final palette = context.thermal;
@@ -166,23 +127,15 @@ class _LookupTile extends ConsumerWidget {
     controller.dispose();
 
     if (name == null || name.isEmpty || name == row.name) return;
-    final lookups = ref.read(lookupsControllerProvider);
-    if (kind == LookupKind.category) {
-      await lookups.renameCategory(row.id, name);
-    } else {
-      await lookups.renameAccount(row.id, name);
-    }
+    await ref.read(lookupsControllerProvider).renameCategory(row.id!, name);
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final lookups = ref.read(lookupsControllerProvider);
-    final usage = kind == LookupKind.category
-        ? await lookups.categoryUsage(row.id)
-        : await lookups.accountUsage(row.id);
+    final usage = await lookups.categoryUsage(row.id!);
 
     if (!context.mounted) return;
     final palette = context.thermal;
-    final noun = kind == LookupKind.category ? 'category' : 'account';
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -197,10 +150,10 @@ class _LookupTile extends ConsumerWidget {
         title: Text('Delete "${row.name}"?'),
         content: Text(
           usage == 0
-              ? 'Nothing uses this $noun yet.'
+              ? 'Nothing uses this category yet.'
               : '$usage ${usage == 1 ? 'expense' : 'expenses'} '
-                  '${usage == 1 ? 'uses' : 'use'} this $noun. '
-                  "They keep their record; they'll just show no $noun.",
+                  '${usage == 1 ? 'uses' : 'use'} this category. '
+                  "They keep their record; they'll just show no category.",
         ),
         actions: [
           TextButton(
@@ -218,13 +171,7 @@ class _LookupTile extends ConsumerWidget {
       ),
     );
 
-    if (confirmed ?? false) {
-      if (kind == LookupKind.category) {
-        await lookups.deleteCategory(row.id);
-      } else {
-        await lookups.deleteAccount(row.id);
-      }
-    }
+    if (confirmed ?? false) await lookups.deleteCategory(row.id!);
   }
 
   @override
@@ -263,10 +210,7 @@ class _LookupTile extends ConsumerWidget {
 }
 
 class _AddRow extends ConsumerStatefulWidget {
-  const _AddRow({required this.kind, required this.hint});
-
-  final LookupKind kind;
-  final String hint;
+  const _AddRow();
 
   @override
   ConsumerState<_AddRow> createState() => _AddRowState();
@@ -284,12 +228,7 @@ class _AddRowState extends ConsumerState<_AddRow> {
   Future<void> _submit() async {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
-    final lookups = ref.read(lookupsControllerProvider);
-    if (widget.kind == LookupKind.category) {
-      await lookups.addCategory(name);
-    } else {
-      await lookups.addAccount(name);
-    }
+    await ref.read(lookupsControllerProvider).addCategory(name);
     _controller.clear();
   }
 
@@ -302,7 +241,7 @@ class _AddRowState extends ConsumerState<_AddRow> {
             controller: _controller,
             textCapitalization: TextCapitalization.words,
             onSubmitted: (_) => _submit(),
-            decoration: InputDecoration(hintText: widget.hint),
+            decoration: const InputDecoration(hintText: 'New category name'),
           ),
         ),
         const SizedBox(width: Space.sm),
