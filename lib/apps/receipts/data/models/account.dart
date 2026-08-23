@@ -1,3 +1,5 @@
+import 'package:shopping_list/apps/receipts/data/models/account_mark.dart';
+
 /// Where money actually sits.
 ///
 /// Distinct from a payment method, which is a way of reaching an account. The
@@ -14,6 +16,7 @@ class Account {
     this.openingMinor = 0,
     this.openedAt,
     this.archivedAt,
+    this.mark = AccountMark.fallbackId,
   });
 
   final int? id;
@@ -38,6 +41,11 @@ class Account {
   /// Archived rather than deleted: a closed account still owns its history.
   final DateTime? archivedAt;
 
+  /// Id of an [AccountMark] — the icon and ink on the passbook page.
+  final String mark;
+
+  AccountMark get stamp => AccountMark.byId(mark);
+
   bool get isArchived => archivedAt != null;
 
   /// What the chip shows: `Visa ·1234` reads better than either half alone.
@@ -56,6 +64,7 @@ class Account {
         archivedAt: m['archived_at'] == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(m['archived_at']! as int),
+        mark: m['mark'] as String? ?? AccountMark.fallbackId,
       );
 
   Map<String, Object?> toMap() => {
@@ -67,6 +76,7 @@ class Account {
         'opening_minor': openingMinor,
         'opened_at': openedAt?.millisecondsSinceEpoch,
         'archived_at': archivedAt?.millisecondsSinceEpoch,
+        'mark': mark,
       };
 
   Account copyWith({
@@ -78,6 +88,7 @@ class Account {
     int? openingMinor,
     DateTime? openedAt,
     DateTime? archivedAt,
+    String? mark,
   }) =>
       Account(
         id: id ?? this.id,
@@ -88,6 +99,7 @@ class Account {
         openingMinor: openingMinor ?? this.openingMinor,
         openedAt: openedAt ?? this.openedAt,
         archivedAt: archivedAt ?? this.archivedAt,
+        mark: mark ?? this.mark,
       );
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/gym/data/gym_activity.dart';
 import 'package:shopping_list/apps/gym/data/models/exercise.dart';
@@ -22,9 +23,8 @@ class RecordSetScreen extends ConsumerStatefulWidget {
 
   final int? exerciseId;
 
-  /// When set, the set lands on this day rather than whatever pass was last
-  /// on screen. The hub shortcut always passes today so a leftover date from
-  /// an earlier visit cannot steal the log.
+  /// When set, the set lands on this day. Otherwise today — not whichever
+  /// pass you were looking at.
   final DateTime? forDay;
 
   static Future<void> open(
@@ -45,6 +45,7 @@ class RecordSetScreen extends ConsumerStatefulWidget {
 
 class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
   int? _exerciseId;
+  late DateTime _day;
   LoadEntry _load = LoadEntry();
   RepsEntry _reps = RepsEntry();
   KeypadField _field = KeypadField.weight;
@@ -55,6 +56,7 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
   void initState() {
     super.initState();
     _exerciseId = widget.exerciseId;
+    _day = GymActivity.startOfDay(widget.forDay ?? DateTime.now());
   }
 
   void _apply(Exercise exercise) {
@@ -92,15 +94,12 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
     if (reps <= 0) return;
 
     setState(() => _logging = true);
-    final day = widget.forDay != null
-        ? GymActivity.startOfDay(widget.forDay!)
-        : ref.read(selectedDayProvider);
     try {
       await ref.read(gymControllerProvider).logSet(
             exerciseId: exercise.id!,
             reps: reps,
             weightG: _load.grams,
-            day: day,
+            day: _day,
           );
       if (!mounted) return;
       await showSetStamp(
@@ -126,6 +125,20 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
     }
   }
 
+  Future<void> _pickDay() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _day,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year, now.month, now.day),
+      helpText: 'Which day?',
+      useRootNavigator: false,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _day = GymActivity.startOfDay(picked));
+  }
+
   void _nudge(int direction) {
     HapticFeedback.selectionClick();
     setState(() {
@@ -142,9 +155,6 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
     final palette = context.thermal;
     final rack = ref.watch(rackProvider);
     final all = ref.watch(exercisesProvider);
-    final day = widget.forDay != null
-        ? GymActivity.startOfDay(widget.forDay!)
-        : ref.watch(selectedDayProvider);
 
     return Scaffold(
       backgroundColor: palette.paper,
@@ -184,12 +194,13 @@ class _RecordSetScreenState extends ConsumerState<RecordSetScreen> {
                     ? _RackPicker(exercises: exercises, onSelect: _select)
                     : _SetEditor(
                         exercise: logging,
-                        day: day,
+                        day: _day,
                         load: _load,
                         reps: _reps,
                         field: _field,
                         onField: _focus,
                         onNudge: _nudge,
+                        onPickDay: _pickDay,
                         onSwitch: () => setState(() {
                           _exerciseId = null;
                           _didPrefill = false;
@@ -333,6 +344,7 @@ class _SetEditor extends ConsumerWidget {
     required this.field,
     required this.onField,
     required this.onNudge,
+    required this.onPickDay,
     required this.onSwitch,
   });
 
@@ -343,6 +355,7 @@ class _SetEditor extends ConsumerWidget {
   final KeypadField field;
   final ValueChanged<KeypadField> onField;
   final ValueChanged<int> onNudge;
+  final VoidCallback onPickDay;
   final VoidCallback onSwitch;
 
   @override
@@ -381,6 +394,23 @@ class _SetEditor extends ConsumerWidget {
             style: Type.caption.copyWith(color: palette.faded),
           ),
           orElse: () => const SizedBox.shrink(),
+        ),
+        const SizedBox(height: Space.md),
+        InkWell(
+          onTap: onPickDay,
+          child: Row(
+            children: [
+              Text(
+                _dayLabel(day),
+                style: Type.item.copyWith(color: palette.print),
+              ),
+              const SizedBox(width: Space.sm),
+              Text(
+                'Change day',
+                style: Type.caption.copyWith(color: palette.faded),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: Space.xl),
         Row(
@@ -425,6 +455,15 @@ class _SetEditor extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  static String _dayLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final difference = today.difference(date).inDays;
+    if (difference == 0) return 'Today';
+    if (difference == 1) return 'Yesterday';
+    return DateFormat('EEE d MMM').format(date);
   }
 }
 

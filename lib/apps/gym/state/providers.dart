@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/gym/data/gym_activity.dart';
 import 'package:shopping_list/apps/gym/data/gym_repository.dart';
 import 'package:shopping_list/apps/gym/data/models/exercise.dart';
 import 'package:shopping_list/apps/gym/data/models/gym_set.dart';
@@ -80,7 +81,7 @@ class GymController {
     required int weightG,
     DateTime? day,
   }) async {
-    final DateTime on = day ?? ref.read(selectedDayProvider);
+    final DateTime on = day ?? GymActivity.startOfDay(DateTime.now());
     final saved = await _repo.logSet(
       exerciseId: exerciseId,
       reps: reps,

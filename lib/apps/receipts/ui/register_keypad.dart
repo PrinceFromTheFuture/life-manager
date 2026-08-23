@@ -101,65 +101,74 @@ class RegisterKeypad extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.thermal;
 
-    return Container(
-      // The gaps between keys are paper showing through, which is what makes
-      // this read as a printed grid rather than a floating button cluster.
-      color: palette.paper,
-      padding: EdgeInsets.only(
-        left: Space.lg,
-        right: Space.lg,
-        top: Space.md,
-        bottom: Space.md + MediaQuery.paddingOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final row in const [
-            ['1', '2', '3'],
-            ['4', '5', '6'],
-            ['7', '8', '9'],
-          ])
+    // Same contract as the system keyboard: OS back dismisses the pad,
+    // not the page underneath it.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        onDone();
+      },
+      child: Container(
+        // The gaps between keys are paper showing through, which is what makes
+        // this read as a printed grid rather than a floating button cluster.
+        color: palette.paper,
+        padding: EdgeInsets.only(
+          left: Space.lg,
+          right: Space.lg,
+          top: Space.md,
+          bottom: Space.md + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final row in const [
+              ['1', '2', '3'],
+              ['4', '5', '6'],
+              ['7', '8', '9'],
+            ])
+              Row(
+                children: [
+                  for (final key in row)
+                    Expanded(
+                      child: _Key(
+                        label: key,
+                        onTap: () => _press(entry.press(key)),
+                      ),
+                    ),
+                ],
+              ),
             Row(
               children: [
-                for (final key in row)
-                  Expanded(
-                    child: _Key(
-                      label: key,
-                      onTap: () => _press(entry.press(key)),
-                    ),
+                Expanded(
+                  child: _Key(
+                    label: '.',
+                    onTap: () => _press(entry.dot()),
                   ),
+                ),
+                Expanded(
+                  child: _Key(
+                    label: '0',
+                    onTap: () => _press(entry.press('0')),
+                  ),
+                ),
+                Expanded(
+                  child: _Key(
+                    semanticLabel: 'Backspace',
+                    icon: Icons.backspace_outlined,
+                    onTap: () => _press(entry.backspace()),
+                    onLongPress: () => _press(entry.clear()),
+                  ),
+                ),
               ],
             ),
-          Row(
-            children: [
-              Expanded(
-                child: _Key(
-                  label: '.',
-                  onTap: () => _press(entry.dot()),
-                ),
-              ),
-              Expanded(
-                child: _Key(
-                  label: '0',
-                  onTap: () => _press(entry.press('0')),
-                ),
-              ),
-              Expanded(
-                child: _Key(
-                  semanticLabel: 'Backspace',
-                  icon: Icons.backspace_outlined,
-                  onTap: () => _press(entry.backspace()),
-                  onLongPress: () => _press(entry.clear()),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: Space.md),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(onPressed: onDone, child: Text(doneLabel)),
-          ),
-        ],
+            const SizedBox(height: Space.md),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(onPressed: onDone, child: Text(doneLabel)),
+            ),
+          ],
+        ),
       ),
     );
   }

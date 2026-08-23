@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
+import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -200,19 +202,27 @@ class SheetChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.ink,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
+  /// When set, the chip prints in this category's ink instead of the app's
+  /// carbon. Payment-method chips leave it null.
+  final CategoryInk? ink;
+
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final light = Theme.of(context).brightness == Brightness.light;
+    final fill = ink?.of(Theme.of(context).brightness) ?? palette.carbon;
+    // Paper is the contrasting ground in both themes: dark inks on a light
+    // sheet, pastel inks on a dim one.
+    final onFill = palette.paper;
 
     return Material(
-      color: selected ? palette.carbon : palette.paperShade,
+      color: selected ? fill : palette.paperShade,
       borderRadius: Radii.control,
       child: InkWell(
         borderRadius: Radii.control,
@@ -222,13 +232,20 @@ class SheetChip extends StatelessWidget {
             horizontal: Space.md + 2,
             vertical: Space.sm + 2,
           ),
-          child: Text(
-            label,
-            style: Type.body.copyWith(
-              color: selected
-                  ? (light ? palette.paper : palette.print)
-                  : palette.print,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (ink != null && !selected) ...[
+                CategoryStamp(ink: ink!, size: 8),
+                const SizedBox(width: Space.sm),
+              ],
+              Text(
+                label,
+                style: Type.body.copyWith(
+                  color: selected ? onFill : palette.print,
+                ),
+              ),
+            ],
           ),
         ),
       ),

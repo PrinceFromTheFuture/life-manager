@@ -20,6 +20,7 @@ class BackupManifest {
     required this.schemaVersions,
     required this.tables,
     required this.imageCount,
+    this.keyCount = 0,
   });
 
   static const String currentFormat = 'spindle.backup.v1';
@@ -30,12 +31,16 @@ class BackupManifest {
   final Map<String, int> tables;
   final int imageCount;
 
+  /// How many scanning keys are in the zip. Older copies omit this field.
+  final int keyCount;
+
   Map<String, Object?> toJson() => {
         'format': format,
         'exportedAt': exportedAt.toIso8601String(),
         'schemaVersions': schemaVersions,
         'tables': tables,
         'imageCount': imageCount,
+        'keyCount': keyCount,
       };
 
   factory BackupManifest.fromJson(Map<String, Object?> json) {
@@ -56,6 +61,7 @@ class BackupManifest {
             e.key.toString(): (e.value as num).toInt(),
       },
       imageCount: (json['imageCount'] as num?)?.toInt() ?? 0,
+      keyCount: (json['keyCount'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -73,16 +79,32 @@ class BackupZip {
   final BackupManifest manifest;
 }
 
-/// Full copy of everything the app holds on disk: the SQLite file and every
-/// receipt photo. API keys stay in the keystore and are not in this dump.
+/// What restore put back, including scanning keys when the zip had them.
+class RestoredCopy {
+  const RestoredCopy({required this.manifest, this.keys});
+
+  final BackupManifest manifest;
+
+  /// Keys from the zip, or null if this copy predates keys.json — restore
+  /// then leaves the keys on the phone as they are.
+  final Map<String, String>? keys;
+}
+
+/// Full copy of everything the app holds: the SQLite file, every receipt
+/// photo, and the scanning keys. This app is local; a copy that omitted the
+/// keys would not actually restore scanning.
 class AppBackup {
-  const AppBackup(this._database, this._images);
+  const AppBackup(this._database, this._images, {this.keys = const {}});
 
   final AppDatabase _database;
   final ImageStore _images;
 
+  /// Scanning keys to put in the zip, keyed as they are on the phone.
+  final Map<String, String> keys;
+
   static const String dbEntry = 'shopping_list.db';
   static const String manifestEntry = 'manifest.json';
+  static const String keysEntry = 'keys.json';
   static const String receiptsPrefix = 'receipts/';
 
   Future<BackupZip> build() async {
@@ -106,6 +128,17 @@ class AppBackup {
         );
       }
 
+      final dumpedKeys = {
+        for (final e in keys.entries)
+          if (e.value.trim().isNotEmpty) e.key: e.value.trim(),
+      };
+      archive.addFile(
+        ArchiveFile.string(
+          keysEntry,
+          const JsonEncoder.withIndent('  ').convert(dumpedKeys),
+        ),
+      );
+
       final counts = await _tableCounts(_database.db);
       final manifest = BackupManifest(
         format: BackupManifest.currentFormat,
@@ -113,6 +146,7 @@ class AppBackup {
         schemaVersions: await Migrator.versions(_database.db),
         tables: counts,
         imageCount: images.length,
+        keyCount: dumpedKeys.length,
       );
       archive.addFile(
         ArchiveFile.string(
@@ -121,7 +155,7 @@ class AppBackup {
         ),
       );
 
-      final stamp = DateFormat('yyyy-MM-dd_HHmm').format(DateTime.now());
+      final stamp = DateFormat('yyyy-MM-dd_HHmmss').format(DateTime.now());
       return BackupZip(
         fileName: 'spindle_$stamp.zip',
         bytes: ZipEncoder().encodeBytes(archive),
@@ -181,22 +215,27 @@ class AppBackup {
     return _manifestOf(archive);
   }
 
-  /// Replaces the live database and receipt photos with [zipBytes].
+  /// Replaces the live database, receipt photos and scanning keys with
+  /// [zipBytes].
   ///
   /// [closeLive] is called after the backup has been validated and written to
   /// a staging file, and before the live file is swapped — so a bad zip never
-  /// closes the open database.
-  static Future<BackupManifest> restore({
+  /// closes the open database. [restoreKeys] runs only when the zip contains
+  /// keys.json; older copies leave the keys on the phone as they are.
+  static Future<RestoredCopy> restore({
     required List<int> zipBytes,
     required String liveDbPath,
     required Directory documentsRoot,
     Future<void> Function()? closeLive,
+    Future<void> Function(Map<String, String> keys)? restoreKeys,
   }) async {
     final archive = ZipDecoder().decodeBytes(zipBytes);
     final manifest = _manifestOf(archive);
     if (manifest.format != BackupManifest.currentFormat) {
       throw const FormatException('That file is not a Spindle backup.');
     }
+
+    final keys = _keysOf(archive);
 
     final dbFile = _fileNamed(archive, dbEntry);
     final dbBytes = dbFile.readBytes();
@@ -234,7 +273,43 @@ class AppBackup {
       await File(p.join(receiptsDir.path, name)).writeAsBytes(bytes);
     }
 
-    return manifest;
+    if (keys != null && restoreKeys != null) {
+      await restoreKeys(keys);
+    }
+
+    return RestoredCopy(manifest: manifest, keys: keys);
+  }
+
+  /// Keys from the zip, or null if this copy was made before keys were
+  /// included. An empty map means the copy had none — restore should clear.
+  static Map<String, String>? _keysOf(Archive archive) {
+    ArchiveFile? file;
+    for (final entry in archive) {
+      if (entry.name == keysEntry) {
+        file = entry;
+        break;
+      }
+    }
+    if (file == null) return null;
+    final bytes = file.readBytes();
+    if (bytes == null) {
+      throw const FormatException('The backup keys file is empty.');
+    }
+    final decoded = jsonDecode(utf8.decode(bytes));
+    if (decoded is! Map) {
+      throw const FormatException('The backup keys file is unreadable.');
+    }
+    final keys = <String, String>{};
+    for (final e in decoded.entries) {
+      final value = e.value;
+      if (value is! String) {
+        throw const FormatException('The backup keys file is unreadable.');
+      }
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) continue;
+      keys[e.key.toString()] = trimmed;
+    }
+    return keys;
   }
 
   static BackupManifest _manifestOf(Archive archive) {

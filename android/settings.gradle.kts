@@ -19,10 +19,9 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    // Flutter 3.29.1's gradle plugin still compiles groovy.xml.QName, which
-    // Gradle 9 / AGP 9 dropped. Pin to the versions this SDK ships against.
-    id("com.android.application") version "8.7.3" apply false
-    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+    // Flutter 3.47 requires Kotlin ≥ 2.2.20; Gradle 8.14 + AGP 8.11 still build.
+    id("com.android.application") version "8.11.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
 include(":app")

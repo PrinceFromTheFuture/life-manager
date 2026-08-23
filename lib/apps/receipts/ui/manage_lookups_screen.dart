@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
+import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -130,6 +132,16 @@ class _LookupTile extends ConsumerWidget {
     await ref.read(lookupsControllerProvider).renameCategory(row.id!, name);
   }
 
+  Future<void> _pickInk(BuildContext context, WidgetRef ref) async {
+    final picked = await showCategoryInkPicker(
+      context: context,
+      selected: row.stamp,
+      title: 'Ink for ${row.name}',
+    );
+    if (picked == null || picked.id == row.ink) return;
+    await ref.read(lookupsControllerProvider).setCategoryInk(row.id!, picked.id);
+  }
+
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final lookups = ref.read(lookupsControllerProvider);
     final usage = await lookups.categoryUsage(row.id!);
@@ -185,14 +197,33 @@ class _LookupTile extends ConsumerWidget {
         children: [
           Icon(Icons.drag_indicator, size: 18, color: palette.faded),
           const SizedBox(width: Space.md),
+          Tooltip(
+            message: 'Change ink',
+            child: CategoryInkPad(
+              ink: row.stamp,
+              selected: false,
+              showLabel: false,
+              onTap: () => _pickInk(context, ref),
+            ),
+          ),
+          const SizedBox(width: Space.md),
           Expanded(
             child: InkWell(
               onTap: () => _rename(context, ref),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: Space.xs),
-                child: Text(
-                  row.name,
-                  style: Type.item.copyWith(color: palette.print),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.name,
+                      style: Type.item.copyWith(color: palette.print),
+                    ),
+                    Text(
+                      row.stamp.label,
+                      style: Type.caption.copyWith(color: palette.faded),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -218,6 +249,7 @@ class _AddRow extends ConsumerStatefulWidget {
 
 class _AddRowState extends ConsumerState<_AddRow> {
   final _controller = TextEditingController();
+  CategoryInk? _chosen;
 
   @override
   void dispose() {
@@ -225,27 +257,51 @@ class _AddRowState extends ConsumerState<_AddRow> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _pickInk(CategoryInk current) async {
+    final picked = await showCategoryInkPicker(
+      context: context,
+      selected: current,
+      title: 'Ink',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _chosen = picked);
+  }
+
+  Future<void> _submit(CategoryInk ink) async {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
-    await ref.read(lookupsControllerProvider).addCategory(name);
+    await ref.read(lookupsControllerProvider).addCategory(name, ink: ink.id);
     _controller.clear();
+    if (!mounted) return;
+    setState(() => _chosen = null);
   }
 
   @override
   Widget build(BuildContext context) {
+    final categories =
+        ref.watch(categoriesProvider).valueOrNull ?? const [];
+    final ink = _chosen ??
+        CategoryInk.byId(CategoryInk.next(categories.map((c) => c.ink)));
+
     return Row(
       children: [
+        CategoryInkPad(
+          ink: ink,
+          selected: false,
+          showLabel: false,
+          onTap: () => _pickInk(ink),
+        ),
+        const SizedBox(width: Space.sm),
         Expanded(
           child: TextField(
             controller: _controller,
             textCapitalization: TextCapitalization.words,
-            onSubmitted: (_) => _submit(),
-            decoration: const InputDecoration(hintText: 'New category name'),
+            onSubmitted: (_) => _submit(ink),
+            decoration: const InputDecoration(hintText: 'New category'),
           ),
         ),
         const SizedBox(width: Space.sm),
-        FilledButton(onPressed: _submit, child: const Text('Add')),
+        FilledButton(onPressed: () => _submit(ink), child: const Text('Add')),
       ],
     );
   }

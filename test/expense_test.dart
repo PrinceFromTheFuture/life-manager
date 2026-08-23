@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/export/expense_exporter.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_mark.dart';
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_activity.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
 import 'package:shopping_list/core/activity/activity_dao.dart';
@@ -293,9 +295,58 @@ void main() {
       final after = await repo.categories();
       expect(after.map((c) => c.id).toList(), reversed);
     });
+
+    test('each seeded category owns a stamp-pad ink', () async {
+      final categories = await repo.categories();
+      expect(categories, isNotEmpty);
+      expect(
+        {for (final c in categories) c.ink},
+        hasLength(categories.length),
+      );
+      expect(
+        categories.firstWhere((c) => c.name == 'Groceries').ink,
+        CategoryInk.pine.id,
+      );
+      expect(
+        categories.firstWhere((c) => c.name == 'Home').ink,
+        CategoryInk.ledger.id,
+      );
+    });
+
+    test('a new category can take a chosen ink, and ink can be changed',
+        () async {
+      final created = await repo.addCategory('Pets', ink: CategoryInk.wine.id);
+      expect(created.ink, CategoryInk.wine.id);
+
+      await repo.setCategoryInk(created.id!, CategoryInk.teal.id);
+      final after = (await repo.categories())
+          .firstWhere((c) => c.id == created.id);
+      expect(after.ink, CategoryInk.teal.id);
+
+      await repo.setCategoryInk(created.id!, 'not-a-real-ink');
+      final fallback = (await repo.categories())
+          .firstWhere((c) => c.id == created.id);
+      expect(fallback.ink, CategoryInk.ledger.id);
+    });
   });
 
   group('managing accounts', () {
+    test('seeded accounts each have a unique printed mark', () async {
+      final accounts = await repo.accounts();
+      expect(
+        accounts.firstWhere((a) => a.name == 'Cash').mark,
+        AccountMark.wallet.id,
+      );
+      expect(
+        accounts.firstWhere((a) => a.name == 'Credit card').mark,
+        AccountMark.plate.id,
+      );
+      expect(
+        {for (final a in accounts) a.mark},
+        hasLength(accounts.length),
+      );
+    });
+
     test('rename, usage and delete mirror categories', () async {
       final cash = (await repo.accounts()).firstWhere((a) => a.name == 'Cash');
 

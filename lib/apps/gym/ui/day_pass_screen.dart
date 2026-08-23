@@ -16,8 +16,8 @@ import 'package:shopping_list/core/util/load.dart';
 /// Today's day pass — the session is the calendar day.
 ///
 /// The pass is blank until the first set is stamped onto it. Stepping the
-/// date looks at earlier passes; recording always writes to the day you are
-/// looking at, so a forgotten set can still land on yesterday.
+/// date looks at earlier passes. Recording a set lands on today unless you
+/// pick another day on the stamp itself.
 class DayPassScreen extends ConsumerStatefulWidget {
   const DayPassScreen({super.key, this.day});
 
@@ -327,6 +327,43 @@ class _SetRow extends ConsumerWidget {
   final GymSet set;
   final int index;
 
+  /// A stamped set is a record of work. Swiping it away between sets is easy
+  /// to do by accident, and there is no undo once the row is gone — so this
+  /// asks first, same as deleting an expense or a standing order.
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final palette = context.thermal;
+    return await showDialog<bool>(
+          context: context,
+          useRootNavigator: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: palette.paper,
+            surfaceTintColor: Colors.transparent,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            titleTextStyle:
+                Type.display.copyWith(fontSize: 20, color: palette.print),
+            contentTextStyle: Type.body.copyWith(color: palette.print),
+            title: const Text('Delete this set?'),
+            content: Text(
+              '${Load.format(set.weightG)} × ${set.reps} is deleted for good.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Keep'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
@@ -334,6 +371,7 @@ class _SetRow extends ConsumerWidget {
     return Dismissible(
       key: ValueKey('set-${set.id}'),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDelete(context),
       onDismissed: (_) => ref.read(gymControllerProvider).deleteSet(set.id!),
       background: ColoredBox(
         color: palette.paperShade,

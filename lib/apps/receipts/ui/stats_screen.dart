@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
@@ -18,7 +19,9 @@ import 'package:shopping_list/core/util/money.dart';
 /// Where the money went this month.
 ///
 /// Built without a chart package: ink wells, a till tape of shops, and a
-/// day-by-day column. One ink — the labels carry identity, colour does not.
+/// day-by-day column. Kind (to claim vs personal) still shares one carbon.
+/// Categories each carry their own stamp-pad ink, so the breakdown can be
+/// read at a glance.
 ///
 /// A section of the shell rather than a pushed screen: statistics answer a
 /// question about the same month the slips list is showing, so making you
@@ -94,6 +97,7 @@ class _StatsBody extends ConsumerWidget {
     final fullTotal = ReceiptsView.totalOf(expenses);
     final total = ReceiptsView.totalOf(shown);
     final categoryNames = {for (final c in categories) c.id: c.name};
+    final categoryInks = {for (final c in categories) c.id: c.stamp};
     final accountNames = {for (final a in accounts) a.id: a.label};
     final merchants = ReceiptsView.merchantTape(shown);
     final weeks = ReceiptsView.statementWeeks(shown, month);
@@ -230,6 +234,7 @@ class _StatsBody extends ConsumerWidget {
           _CategoryBreakdown(
             expenses: shown,
             categoryNames: categoryNames,
+            categoryInks: categoryInks,
           ),
           if (_hasPaidWith(shown)) ...[
             const SizedBox(height: Space.xl),
@@ -457,13 +462,17 @@ class _CategoryBreakdown extends StatelessWidget {
   const _CategoryBreakdown({
     required this.expenses,
     required this.categoryNames,
+    required this.categoryInks,
   });
 
   final List<Expense> expenses;
   final Map<int?, String> categoryNames;
+  final Map<int?, CategoryInk> categoryInks;
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.thermal;
+    final brightness = Theme.of(context).brightness;
     final totals = <int?, int>{};
     for (final e in expenses) {
       totals[e.categoryId] = (totals[e.categoryId] ?? 0) + e.amountMinor;
@@ -481,6 +490,7 @@ class _CategoryBreakdown extends StatelessWidget {
             label: categoryNames[entry.key] ?? 'Unfiled',
             amountMinor: entry.value,
             fraction: entry.value / max,
+            ink: categoryInks[entry.key]?.of(brightness) ?? palette.faded,
           ),
           const SizedBox(height: Space.md),
         ],

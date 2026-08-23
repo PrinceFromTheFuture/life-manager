@@ -169,6 +169,10 @@ abstract final class Motion {
   static const Duration quick = Duration(milliseconds: 160);
   static const Duration settle = Duration(milliseconds: 260);
 
+  /// A register printing a total. Long enough to read as counting, short
+  /// enough that switching accounts does not become a wait.
+  static const Duration countUp = Duration(milliseconds: 720);
+
   static const Curve heat = Curves.easeOutCubic;
 }
 

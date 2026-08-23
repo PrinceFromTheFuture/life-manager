@@ -277,5 +277,72 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         ''',
       ],
     ),
+
+    // Each category owns one stamp-pad ink so statistics can tell them apart.
+    // Ids are stable names, not hex, so a colour can be retuned without
+    // rewriting anyone's database.
+    Migration(
+      version: 4,
+      statements: [
+        '''
+        ALTER TABLE expense_categories ADD COLUMN ink TEXT NOT NULL DEFAULT 'ledger'
+        ''',
+        '''
+        UPDATE expense_categories SET ink = CASE name
+          WHEN 'Groceries' THEN 'pine'
+          WHEN 'Eating out' THEN 'carmine'
+          WHEN 'Transport' THEN 'slate'
+          WHEN 'Fuel' THEN 'scorch'
+          WHEN 'Pharmacy' THEN 'violet'
+          WHEN 'Home' THEN 'ledger'
+          WHEN 'Utilities' THEN 'teal'
+          WHEN 'Clothing' THEN 'iron'
+          WHEN 'Entertainment' THEN 'mustard'
+          WHEN 'Other' THEN 'wine'
+          ELSE ink
+        END
+        ''',
+        '''
+        UPDATE expense_categories SET ink = CASE (id % 10)
+          WHEN 0 THEN 'pine'
+          WHEN 1 THEN 'carmine'
+          WHEN 2 THEN 'slate'
+          WHEN 3 THEN 'scorch'
+          WHEN 4 THEN 'violet'
+          WHEN 5 THEN 'ledger'
+          WHEN 6 THEN 'teal'
+          WHEN 7 THEN 'iron'
+          WHEN 8 THEN 'mustard'
+          ELSE 'wine'
+        END
+        WHERE name NOT IN (
+          'Groceries', 'Eating out', 'Transport', 'Fuel', 'Pharmacy',
+          'Home', 'Utilities', 'Clothing', 'Entertainment', 'Other'
+        )
+        ''',
+      ],
+    ),
+
+    // Each account owns a printed mark — icon plus stamp-pad ink — so the
+    // passbook pages can be told apart at a glance.
+    Migration(
+      version: 5,
+      statements: [
+        '''
+        ALTER TABLE accounts ADD COLUMN mark TEXT NOT NULL DEFAULT 'vault'
+        ''',
+        '''
+        UPDATE accounts SET mark = CASE
+          WHEN name = 'Cash' THEN 'wallet'
+          WHEN name = 'Credit card' THEN 'plate'
+          WHEN name = 'Debit card' THEN 'atm'
+          WHEN kind = 'cash' THEN 'wallet'
+          WHEN kind = 'card' THEN 'plate'
+          WHEN kind = 'bank' THEN 'vault'
+          ELSE 'coins'
+        END
+        ''',
+      ],
+    ),
   ],
 );

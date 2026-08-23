@@ -16,6 +16,7 @@ import 'package:shopping_list/core/backup/app_backup.dart';
 import 'package:shopping_list/core/db/database.dart';
 import 'package:shopping_list/core/db/migration.dart';
 import 'package:shopping_list/core/db/migrator.dart';
+import 'package:shopping_list/core/settings/api_keys.dart';
 import 'package:shopping_list/core/storage/image_store.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -81,10 +82,12 @@ void main() {
         receiptsMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['groceries'], 1);
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
+    expect(zip.manifest.keyCount, 0);
 
     final inspected = AppBackup.inspect(zip.bytes);
     expect(inspected.imageCount, 1);
     expect(inspected.tables['expenses'], 1);
+    expect(inspected.keyCount, 0);
   });
 
   test('restore puts the expense and its photo back', () async {
@@ -128,6 +131,49 @@ void main() {
     expect(found!.merchant, 'Super-Pharm');
     expect(found.amountMinor, 9900);
     expect(await restoredRepo.images.exists(found.receiptPath), isTrue);
+  });
+
+  test('a copy dumps and restores scanning keys', () async {
+    final database = await openCurrent(path: p.join(dir.path, 'live.db'));
+    final docs = Directory(p.join(dir.path, 'docs'))..createSync();
+    final images = ImageStore(root: docs);
+
+    final dumped = {
+      ApiKeyKind.googleVision.storageKey: 'vision-test-key',
+      ApiKeyKind.openRouter.storageKey: 'router-test-key',
+    };
+    final zip = await AppBackup(database, images, keys: dumped).build();
+    expect(zip.manifest.keyCount, 2);
+    expect(AppBackup.inspect(zip.bytes).keyCount, 2);
+
+    Map<String, String>? restoredKeys;
+    await AppBackup.restore(
+      zipBytes: zip.bytes,
+      liveDbPath: database.path,
+      documentsRoot: docs,
+      closeLive: database.close,
+      restoreKeys: (keys) async => restoredKeys = keys,
+    );
+    expect(restoredKeys, dumped);
+  });
+
+  test('a copy with no keys clears them on restore', () async {
+    final database = await openCurrent(path: p.join(dir.path, 'live.db'));
+    final docs = Directory(p.join(dir.path, 'docs'))..createSync();
+    final images = ImageStore(root: docs);
+
+    final zip = await AppBackup(database, images).build();
+    expect(zip.manifest.keyCount, 0);
+
+    Map<String, String>? restoredKeys;
+    await AppBackup.restore(
+      zipBytes: zip.bytes,
+      liveDbPath: database.path,
+      documentsRoot: docs,
+      closeLive: database.close,
+      restoreKeys: (keys) async => restoredKeys = keys,
+    );
+    expect(restoredKeys, isEmpty);
   });
 
   test('a pre-gym backup reopens on this build with every old record intact',
@@ -529,6 +575,7 @@ void main() {
       zipBytes: bytes,
       liveDbPath: livePath,
       documentsRoot: docs,
+      restoreKeys: (keys) async => fail('older copies must not rewrite keys'),
     );
 
     final restored = await openCurrent(path: livePath);
@@ -539,7 +586,7 @@ void main() {
     final gym = GymRepository(restored);
 
     final versions = await Migrator.versions(restored.db);
-    expect(versions['receipts'], 3);
+    expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['groceries'], 1);
     expect(versions['gym'], 1);
 

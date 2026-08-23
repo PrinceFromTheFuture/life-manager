@@ -1,23 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/data/finance/statement_cycle.dart';
-import 'package:shopping_list/apps/receipts/data/models/account_entry.dart';
 import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/account_sheet.dart';
-import 'package:shopping_list/apps/receipts/ui/accounts/change_chip.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/cycle_band.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/glass_passbook.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/ledger_entry_row.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/payment_method_sheet.dart';
-import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/util/money.dart';
 
 /// One account, elevated: what it is, what pays from it, and every line
 /// that built the balance.
@@ -65,16 +61,26 @@ class AccountDetailScreen extends ConsumerWidget {
           ),
         ),
         data: (entries) {
-          final balance = standing?.balanceMinor ??
-              (entries.isEmpty
-                  ? (account?.openingMinor ?? 0)
-                  : entries.first.balanceAfter);
-
           return ListView(
             padding: const EdgeInsets.only(bottom: Space.xxl),
             children: [
               if (standing != null)
-                _AccountHero(standing: standing, balanceMinor: balance),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.lg,
+                    Space.md,
+                    Space.lg,
+                    0,
+                  ),
+                  child: SizedBox(
+                    height: 188,
+                    child: GlassPassbook(
+                      standing: standing,
+                      inMinor: _todayIn(entries),
+                      outMinor: _todayOut(entries),
+                    ),
+                  ),
+                ),
               const SizedBox(height: Space.lg),
               _PaysWith(standing: standing),
               const SizedBox(height: Space.lg),
@@ -91,7 +97,7 @@ class AccountDetailScreen extends ConsumerWidget {
                 const _NoEntries()
               else
                 for (final line in entries) ...[
-                  _LedgerMoveRow(line: line),
+                  LedgerEntryRow(line: line),
                   if (line != entries.last)
                     const PerforatedRule(indent: Space.lg),
                 ],
@@ -135,83 +141,33 @@ class AccountDetailScreen extends ConsumerWidget {
     await ref.read(financeControllerProvider).archiveAccount(accountId);
     if (context.mounted) Navigator.of(context).pop();
   }
-}
 
-/// The account as a plate sitting on the paper, one step up from the list.
-class _AccountHero extends StatelessWidget {
-  const _AccountHero({required this.standing, required this.balanceMinor});
-
-  final AccountStanding standing;
-  final int balanceMinor;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final account = standing.account;
-    final kind = switch (account.kind) {
-      'bank' => 'Bank',
-      'cash' => 'Cash',
-      'card' => 'Card',
-      _ => 'Account',
-    };
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, 0),
-      child: Material(
-        color: palette.paperShade,
-        shape: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(
-            color: palette.print.withValues(alpha: 0.35),
-            width: 1.25,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            Space.lg,
-            Space.md,
-            Space.lg,
-            Space.lg,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const PerforatedRule(),
-              const SizedBox(height: Space.md),
-              Text(
-                kind.toUpperCase(),
-                style: Type.eyebrow.copyWith(color: palette.faded),
-              ),
-              const SizedBox(height: Space.xs),
-              Text(
-                account.name,
-                style: Type.display.copyWith(fontSize: 26, color: palette.print),
-              ),
-              const SizedBox(height: Space.md),
-              Text(
-                Money.format(balanceMinor),
-                style: Type.totalDisplay.copyWith(
-                  color: palette.print,
-                  fontSize: 40,
-                ),
-              ),
-              const SizedBox(height: Space.md),
-              ChangeChip(
-                deltaMinor: standing.todayDeltaMinor,
-                balanceMinor: balanceMinor,
-              ),
-              if (account.openingMinor != 0) ...[
-                const SizedBox(height: Space.sm),
-                Text(
-                  'Opened at ${Money.format(account.openingMinor)}',
-                  style: Type.caption.copyWith(color: palette.faded),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+  static int _todayIn(List<LedgerLine> lines) {
+    final start = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
     );
+    var total = 0;
+    for (final line in lines) {
+      if (line.entry.occurredAt.isBefore(start)) continue;
+      if (line.entry.amountMinor > 0) total += line.entry.amountMinor;
+    }
+    return total;
+  }
+
+  static int _todayOut(List<LedgerLine> lines) {
+    final start = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    var total = 0;
+    for (final line in lines) {
+      if (line.entry.occurredAt.isBefore(start)) continue;
+      if (line.entry.amountMinor < 0) total += -line.entry.amountMinor;
+    }
+    return total;
   }
 }
 
@@ -317,105 +273,6 @@ class _MethodRow extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// Same bones as an expense row: title and description on the left, a
-/// direction mark and the amount on the right, aligned at the start so a
-/// two-line title does not shove the icon down.
-class _LedgerMoveRow extends StatelessWidget {
-  const _LedgerMoveRow({required this.line});
-
-  final LedgerLine line;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final entry = line.entry;
-    final arriving = entry.amountMinor >= 0;
-    final subtitle = _subtitle(entry, line.balanceAfter);
-
-    return InkWell(
-      onTap: _opensSlip(entry)
-          ? () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ExpenseDetailScreen(expenseId: entry.refId!),
-                ),
-              )
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Space.lg,
-          vertical: Space.md + 2,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _label(entry),
-                    style: Type.item.copyWith(color: palette.print),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: Type.caption.copyWith(color: palette.faded),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: Space.md),
-            Icon(
-              arriving ? Icons.south_west : Icons.north_east,
-              size: 16,
-              color: palette.print,
-            ),
-            const SizedBox(width: Space.sm),
-            Text(
-              Money.formatSigned(entry.amountMinor),
-              style: Type.monoBold.copyWith(color: palette.print),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static bool _opensSlip(AccountEntry entry) =>
-      entry.refTable == 'expenses' && entry.refId != null;
-
-  static String _label(AccountEntry entry) {
-    final note = (entry.note ?? '').trim();
-    return switch (entry.kind) {
-      LedgerKind.reversal => note.isEmpty ? 'Reversal' : 'Reversal · $note',
-      LedgerKind.opening => 'Opening balance',
-      LedgerKind.adjustment => note.isEmpty ? 'Adjustment' : note,
-      LedgerKind.income => note.isEmpty ? 'Income' : note,
-      LedgerKind.expense => note.isEmpty ? 'Expense' : note,
-      LedgerKind.settlement => note.isEmpty ? 'Statement' : note,
-    };
-  }
-
-  static String? _subtitle(AccountEntry entry, int balanceAfter) {
-    final date = DateFormat('d MMM').format(entry.occurredAt).toUpperCase();
-    final kind = switch (entry.kind) {
-      LedgerKind.income => 'In',
-      LedgerKind.expense => 'Out',
-      LedgerKind.settlement => 'Statement',
-      LedgerKind.reversal => 'Reversal',
-      LedgerKind.opening => 'Opening',
-      LedgerKind.adjustment => 'Adjustment',
-    };
-    return '$kind · $date · ${Money.format(balanceAfter)}';
   }
 }
 

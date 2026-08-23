@@ -1,6 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_mark.dart';
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 
 /// Categories and accounts — the two short, user-editable lists the entry form
@@ -26,14 +28,17 @@ class LookupsDao {
     return rows.isEmpty ? null : ExpenseCategory.fromMap(rows.first);
   }
 
-  Future<ExpenseCategory> addCategory(String name) async {
+  Future<ExpenseCategory> addCategory(String name, {String? ink}) async {
     final next = Sqflite.firstIntValue(
           await _db.rawQuery(
             'SELECT COALESCE(MAX(sort), -1) + 1 FROM expense_categories',
           ),
         ) ??
         0;
-    final category = ExpenseCategory(name: name.trim(), sort: next);
+    final pad = CategoryInk.byId(ink ?? CategoryInk.next(
+      (await categories()).map((c) => c.ink),
+    )).id;
+    final category = ExpenseCategory(name: name.trim(), sort: next, ink: pad);
     final id = await _db.insert(
       'expense_categories',
       category.toMap(),
@@ -42,8 +47,15 @@ class LookupsDao {
     );
     return id == 0
         ? (await categories()).firstWhere((c) => c.name == name.trim())
-        : ExpenseCategory(id: id, name: category.name, sort: next);
+        : ExpenseCategory(id: id, name: category.name, sort: next, ink: pad);
   }
+
+  Future<void> setCategoryInk(int id, String ink) => _db.update(
+        'expense_categories',
+        {'ink': CategoryInk.byId(ink).id},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
 
   /// Archived accounts are excluded: a retired account should stop being
   /// offered without its history going anywhere.
@@ -97,15 +109,31 @@ class LookupsDao {
     }
   }
 
-  Future<Account> addAccount(String name,
-      {String kind = 'other', String? last4}) async {
+  Future<Account> addAccount(
+    String name, {
+    String kind = 'other',
+    String? last4,
+    String? mark,
+  }) async {
     final next = Sqflite.firstIntValue(
           await _db
               .rawQuery('SELECT COALESCE(MAX(sort), -1) + 1 FROM accounts'),
         ) ??
         0;
-    final account =
-        Account(name: name.trim(), kind: kind, last4: last4, sort: next);
+    final pad = AccountMark.byId(
+      mark ??
+          AccountMark.next(
+            (await accounts(includeArchived: true)).map((a) => a.mark),
+            kind: kind,
+          ),
+    ).id;
+    final account = Account(
+      name: name.trim(),
+      kind: kind,
+      last4: last4,
+      sort: next,
+      mark: pad,
+    );
     final id = await _db.insert(
       'accounts',
       account.toMap(),
@@ -119,8 +147,16 @@ class LookupsDao {
             kind: kind,
             last4: last4,
             sort: next,
+            mark: pad,
           );
   }
+
+  Future<void> setAccountMark(int id, String mark) => _db.update(
+        'accounts',
+        {'mark': AccountMark.byId(mark).id},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
 
   Future<void> renameAccount(int id, String name) => _db.update(
         'accounts',

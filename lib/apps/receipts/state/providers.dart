@@ -75,14 +75,19 @@ class LookupsController {
     ref.invalidate(accountsProvider);
   }
 
-  Future<ExpenseCategory> addCategory(String name) async {
-    final created = await _repo.addCategory(name);
+  Future<ExpenseCategory> addCategory(String name, {String? ink}) async {
+    final created = await _repo.addCategory(name, ink: ink);
     await _reload();
     return created;
   }
 
   Future<void> renameCategory(int id, String name) async {
     await _repo.renameCategory(id, name);
+    await _reload();
+  }
+
+  Future<void> setCategoryInk(int id, String ink) async {
+    await _repo.setCategoryInk(id, ink);
     await _reload();
   }
 
@@ -107,6 +112,12 @@ class LookupsController {
   Future<void> renameAccount(int id, String name) async {
     await _repo.renameAccount(id, name);
     await _reload();
+  }
+
+  Future<void> setAccountMark(int id, String mark) async {
+    await _repo.setAccountMark(id, mark);
+    await _reload();
+    ref.read(financeRevisionProvider.notifier).state++;
   }
 
   Future<int> accountUsage(int id) => _repo.accountUsage(id);
@@ -292,6 +303,12 @@ final recentIncomesProvider = FutureProvider.autoDispose<List<Income>>((ref) {
   return ref.watch(expenseRepositoryProvider).recentIncomes();
 });
 
+final incomeDetailProvider =
+    FutureProvider.autoDispose.family<Income?, int>((ref, id) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).incomeById(id);
+});
+
 final recurringRulesProvider = FutureProvider<List<RecurringRule>>((ref) {
   ref.watch(financeRevisionProvider);
   return ref.watch(expenseRepositoryProvider).recurringRules();
@@ -316,8 +333,8 @@ class FinanceController {
   void _touch() =>
       ref.read(financeRevisionProvider.notifier).state++;
 
-  Future<Account> addAccount(String name, {String kind = 'other'}) async {
-    final created = await _repo.addAccount(name, kind: kind);
+  Future<Account> addAccount(String name, {String kind = 'other', String? mark}) async {
+    final created = await _repo.addAccount(name, kind: kind, mark: mark);
     ref.invalidate(accountsProvider);
     _touch();
     return created;
@@ -325,6 +342,12 @@ class FinanceController {
 
   Future<void> setOpeningBalance(int accountId, int openingMinor) async {
     await _repo.setOpeningBalance(accountId, openingMinor);
+    ref.invalidate(accountsProvider);
+    _touch();
+  }
+
+  Future<void> setAccountMark(int id, String mark) async {
+    await _repo.setAccountMark(id, mark);
     ref.invalidate(accountsProvider);
     _touch();
   }

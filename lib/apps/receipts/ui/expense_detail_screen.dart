@@ -6,10 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/finance/installment_plan.dart';
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/place_map.dart';
+import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
@@ -211,11 +213,17 @@ class _Detail extends ConsumerWidget {
 }
 
 class _Field extends StatelessWidget {
-  const _Field({required this.label, required this.value, this.mono = false});
+  const _Field({
+    required this.label,
+    required this.value,
+    this.mono = false,
+    this.stamp,
+  });
 
   final String label;
   final String value;
   final bool mono;
+  final CategoryInk? stamp;
 
   @override
   Widget build(BuildContext context) {
@@ -234,6 +242,13 @@ class _Field extends StatelessWidget {
             ),
           ),
           const SizedBox(width: Space.md),
+          if (stamp != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: CategoryStamp(ink: stamp!, size: 10),
+            ),
+            const SizedBox(width: Space.sm),
+          ],
           Expanded(
             child: Text(
               value,
@@ -262,7 +277,11 @@ class _CategoryField extends ConsumerWidget {
       data: (items) {
         for (final c in items) {
           if (c.id == categoryId) {
-            return _Field(label: 'WHAT KIND', value: c.name);
+            return _Field(
+              label: 'WHAT KIND',
+              value: c.name,
+              stamp: c.stamp,
+            );
           }
         }
         return const SizedBox.shrink();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_mark.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
 import 'package:shopping_list/apps/receipts/ui/widgets/sheet_parts.dart';
@@ -42,6 +43,7 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
 
   AmountEntry _opening = AmountEntry();
   String _kind = 'bank';
+  String _mark = AccountMark.fallbackId;
   bool _keypadOpen = false;
   bool _saving = false;
 
@@ -54,6 +56,7 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
     if (existing != null) {
       _nameController.text = existing.name;
       _kind = existing.kind;
+      _mark = existing.mark;
       if (existing.openingMinor != 0) {
         _opening = AmountEntry.fromAgorot(existing.openingMinor);
       }
@@ -89,9 +92,11 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
               existing.id!,
               name,
             );
+        await finance.setAccountMark(existing.id!, _mark);
         await finance.setOpeningBalance(existing.id!, opening);
       } else {
-        final created = await finance.addAccount(name, kind: _kind);
+        final created =
+            await finance.addAccount(name, kind: _kind, mark: _mark);
         if (opening != 0) {
           await finance.setOpeningBalance(created.id!, opening);
         }
@@ -186,6 +191,27 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
                           selected: kind == _kind,
                           onTap: () => setState(() {
                             _kind = kind;
+                            if (!_isEditing) {
+                              _mark = AccountMark.next(const [], kind: kind);
+                            }
+                            _keypadOpen = false;
+                          }),
+                        ),
+                    ],
+                  ),
+                ),
+                SheetBlock(
+                  label: 'MARK',
+                  child: Wrap(
+                    spacing: Space.sm,
+                    runSpacing: Space.sm,
+                    children: [
+                      for (final mark in AccountMark.all)
+                        _MarkPad(
+                          mark: mark,
+                          selected: mark.id == _mark,
+                          onTap: () => setState(() {
+                            _mark = mark.id;
                             _keypadOpen = false;
                           }),
                         ),
@@ -249,4 +275,51 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
         'card' => 'Card',
         _ => 'Other',
       };
+}
+
+class _MarkPad extends StatelessWidget {
+  const _MarkPad({
+    required this.mark,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AccountMark mark;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    final ink = mark.ink.of(Theme.of(context).brightness);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: mark.label,
+      child: Material(
+        color: selected ? ink : palette.paperShade,
+        shape: RoundedRectangleBorder(
+          borderRadius: Radii.key,
+          side: BorderSide(
+            color: selected ? palette.print : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: Radii.key,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(
+              mark.icon,
+              size: 20,
+              color: selected ? palette.paper : palette.print,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

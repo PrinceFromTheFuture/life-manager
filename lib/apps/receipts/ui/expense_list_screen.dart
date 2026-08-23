@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/export/expense_exporter.dart';
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
+import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
@@ -312,6 +314,9 @@ class _ExpenseRoll extends ConsumerWidget {
     final methods =
         ref.watch(paymentMethodsProvider).valueOrNull ?? const <PaymentMethod>[];
     final methodNames = {for (final m in methods) m.id: m.label};
+    final categories =
+        ref.watch(categoriesProvider).valueOrNull ?? const <ExpenseCategory>[];
+    final categoryInks = {for (final c in categories) c.id: c.stamp};
 
     return ListView(
       padding: const EdgeInsets.only(bottom: Space.xxl),
@@ -329,7 +334,11 @@ class _ExpenseRoll extends ConsumerWidget {
           ),
           const SizedBox(height: Space.sm),
           for (final expense in group.value) ...[
-            _ExpenseRow(expense: expense, methodNames: methodNames),
+            _ExpenseRow(
+              expense: expense,
+              methodNames: methodNames,
+              categoryInk: categoryInks[expense.categoryId],
+            ),
             if (expense != group.value.last)
               const PerforatedRule(indent: Space.lg),
           ],
@@ -379,10 +388,15 @@ class _ExpenseRoll extends ConsumerWidget {
 }
 
 class _ExpenseRow extends ConsumerWidget {
-  const _ExpenseRow({required this.expense, required this.methodNames});
+  const _ExpenseRow({
+    required this.expense,
+    required this.methodNames,
+    this.categoryInk,
+  });
 
   final Expense expense;
   final Map<int?, String> methodNames;
+  final CategoryInk? categoryInk;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -417,6 +431,14 @@ class _ExpenseRow extends ConsumerWidget {
           ),
           child: Row(
             children: [
+              if (categoryInk != null) ...[
+                Container(
+                  width: 3,
+                  height: 26,
+                  color: categoryInk!.of(Theme.of(context).brightness),
+                ),
+                const SizedBox(width: Space.md),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

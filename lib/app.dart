@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:shopping_list/core/backup/auto_backup.dart';
 import 'package:shopping_list/core/design/ink_scope.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
@@ -19,7 +20,9 @@ class SpindleApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       // The shell is inked in plain print, so the only colour anywhere on the
       // hub belongs to a mini-app.
-      home: InkScope(ink: shellInk, child: const HubScreen()),
+      home: AutoBackupHost(
+        child: InkScope(ink: shellInk, child: const HubScreen()),
+      ),
     );
   }
 }

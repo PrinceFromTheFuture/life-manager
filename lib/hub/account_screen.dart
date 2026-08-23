@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/core/backup/app_backup.dart';
+import 'package:shopping_list/core/backup/auto_backup.dart';
 import 'package:shopping_list/core/backup/backup_picker.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
@@ -48,9 +49,8 @@ class AccountScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Space.lg),
             child: Text(
-              'Keys are stored in the Android keystore on this phone. They are '
-              'never uploaded and never leave the device except to call the '
-              'service they belong to.',
+              'Keys live on this phone. A full copy takes them with it, so '
+              'scanning still works after restore.',
               style: Type.caption.copyWith(color: palette.faded),
             ),
           ),
@@ -66,8 +66,9 @@ class AccountScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.md),
             child: Text(
               'A copy of everything this phone is holding — lists, expenses, '
-              'trips and receipt photos. API keys stay in the keystore. Keep '
-              'one before installing a new build.',
+              'trips, gym, receipt photos and scanning keys. Spindle also '
+              'writes one here every five minutes while it is open. Keep a '
+              'shared copy before installing a new build.',
               style: Type.body.copyWith(color: palette.faded),
             ),
           ),
@@ -214,9 +215,11 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
   Future<void> _export() async {
     setState(() => _busy = true);
     try {
+      final keys = await ref.read(apiKeyStoreProvider).exportAll();
       await AppBackup(
         ref.read(databaseProvider),
         ref.read(imageStoreProvider),
+        keys: keys,
       ).share();
     } on Exception catch (e) {
       if (!mounted) return;
@@ -240,10 +243,9 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
         contentTextStyle: Type.body.copyWith(color: palette.print),
         title: const Text('Replace everything on this phone?'),
         content: const Text(
-          'Lists, expenses, trips and receipt photos will be overwritten by '
-          'the backup. The app will close; open it again and the copy is what '
-          'you will see. API keys are not in the backup and will stay as they '
-          'are.',
+          'Lists, expenses, trips, gym, receipt photos and scanning keys will '
+          'be overwritten by the backup. The app will close; open it again and '
+          'the copy is what you will see.',
         ),
         actions: [
           TextButton(
@@ -266,21 +268,7 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
     try {
       final path = await const BackupPicker().pickZip();
       if (path == null) return;
-      final bytes = await File(path).readAsBytes();
-      AppBackup.inspect(bytes);
-
-      final database = ref.read(databaseProvider);
-      final images = ref.read(imageStoreProvider);
-      final livePath = database.path;
-      final documents = await images.documentsRoot();
-
-      await AppBackup.restore(
-        zipBytes: bytes,
-        liveDbPath: livePath,
-        documentsRoot: documents,
-        closeLive: database.close,
-      );
-      exit(0);
+      await applyRestoredCopy(ref, File(path));
     } on Exception catch (e) {
       if (!mounted) return;
       showPaperSnack(context, message: 'Could not restore: $e');
@@ -295,7 +283,7 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
       children: [
         _DataRow(
           label: 'Export a copy',
-          subtitle: 'A zip of the database and every receipt photo.',
+          subtitle: 'A zip of everything on this phone, including scanning keys.',
           enabled: !_busy,
           onTap: _export,
         ),
@@ -307,8 +295,131 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
           onTap: _restore,
         ),
         const PerforatedRule(indent: Space.lg),
+        const _LocalCopiesRow(),
+        const PerforatedRule(indent: Space.lg),
       ],
     );
+  }
+}
+
+Future<void> applyRestoredCopy(WidgetRef ref, File file) async {
+  final bytes = await file.readAsBytes();
+  AppBackup.inspect(bytes);
+
+  final database = ref.read(databaseProvider);
+  final images = ref.read(imageStoreProvider);
+  final livePath = database.path;
+  final documents = await images.documentsRoot();
+
+  await AppBackup.restore(
+    zipBytes: bytes,
+    liveDbPath: livePath,
+    documentsRoot: documents,
+    closeLive: database.close,
+    restoreKeys: ref.read(apiKeyStoreProvider).importAll,
+  );
+  exit(0);
+}
+
+class _LocalCopiesRow extends ConsumerWidget {
+  const _LocalCopiesRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final copies = ref.watch(localBackupCopiesProvider).valueOrNull ?? const [];
+    final last = copies.isEmpty ? null : copies.first;
+    final subtitle = last == null
+        ? 'None yet. One will be written while Spindle is open.'
+        : copies.length == 1
+            ? 'One copy · latest ${_when(last)}'
+            : '${copies.length} copies · latest ${_when(last)}';
+
+    return _DataRow(
+      label: 'Copies on this phone',
+      subtitle: subtitle,
+      enabled: copies.isNotEmpty,
+      onTap: () => _open(context, ref, copies),
+    );
+  }
+
+  static String _when(File file) {
+    final name = file.uri.pathSegments.last;
+    final match =
+        RegExp(r'spindle_(\d{4}-\d{2}-\d{2})_(\d{6})').firstMatch(name);
+    if (match == null) return name;
+    final time = match.group(2)!;
+    return '${match.group(1)} ${time.substring(0, 2)}:${time.substring(2, 4)}';
+  }
+
+  static Future<void> _open(
+    BuildContext context,
+    WidgetRef ref,
+    List<File> copies,
+  ) async {
+    final palette = context.thermal;
+    final chosen = await showDialog<File>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => SimpleDialog(
+        backgroundColor: palette.paper,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: Text(
+          'Copies on this phone',
+          style: Type.display.copyWith(fontSize: 20, color: palette.print),
+        ),
+        children: [
+          for (final copy in copies)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(copy),
+              child: Text(
+                _when(copy),
+                style: Type.item.copyWith(color: palette.print),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (chosen == null || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: palette.paper,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        titleTextStyle:
+            Type.display.copyWith(fontSize: 20, color: palette.print),
+        contentTextStyle: Type.body.copyWith(color: palette.print),
+        title: const Text('Replace everything on this phone?'),
+        content: const Text(
+          'Lists, expenses, trips, gym, receipt photos and scanning keys will '
+          'be overwritten by this copy. The app will close; open it again and '
+          'the copy is what you will see.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep what is here'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Restore this copy'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await applyRestoredCopy(ref, chosen);
+    } on Exception catch (e) {
+      if (!context.mounted) return;
+      showPaperSnack(context, message: 'Could not restore: $e');
+    }
   }
 }
 

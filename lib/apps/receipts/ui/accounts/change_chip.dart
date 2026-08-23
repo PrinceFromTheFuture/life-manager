@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/util/money.dart';
 
-/// Today's move, as a statement code rather than a coloured sparkline.
+/// Today's move, as a signed number in arrival or departure ink.
 ///
-/// Up means money arrived, down means it left. The percentage is against what
-/// the account held at midnight, which is the only baseline a day's change
-/// actually has. No second colour: the arrow is the whole signal.
+/// No plate. The colour is the signal: pine arrived, carmine left.
 class ChangeChip extends StatelessWidget {
   const ChangeChip({
     super.key,
@@ -39,11 +37,17 @@ class ChangeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
+    final brightness = Theme.of(context).brightness;
     final up = deltaMinor > 0;
     final flat = deltaMinor == 0;
+    final ink = flat
+        ? palette.faded
+        : up
+            ? CategoryInk.pine.of(brightness)
+            : CategoryInk.carmine.of(brightness);
     final percent = percentLabel(deltaMinor, balanceMinor);
     final label = [
-      Money.format(deltaMinor.abs()),
+      Money.formatSigned(deltaMinor),
       if (percent != null) percent,
     ].join(' · ');
 
@@ -51,42 +55,11 @@ class ChangeChip extends StatelessWidget {
       label: flat
           ? 'No move today'
           : '${up ? 'Up' : 'Down'} $label today',
-      child: Material(
-        color: palette.paperShade,
-        shape: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(
-            color: palette.print.withValues(alpha: 0.28),
-            width: 1,
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? Space.sm : Space.md,
-            vertical: compact ? 5 : 7,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                flat
-                    ? Icons.remove
-                    : up
-                        ? Icons.arrow_upward
-                        : Icons.arrow_downward,
-                size: compact ? 12 : 14,
-                color: palette.print,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: Type.monoBold.copyWith(
-                  color: palette.print,
-                  fontSize: compact ? 11 : 12,
-                ),
-              ),
-            ],
-          ),
+      child: Text(
+        flat ? 'No move today' : label,
+        style: Type.monoBold.copyWith(
+          color: ink,
+          fontSize: compact ? 11 : 12,
         ),
       ),
     );

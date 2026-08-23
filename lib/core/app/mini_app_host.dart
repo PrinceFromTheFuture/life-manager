@@ -41,12 +41,18 @@ class _MiniAppHostState extends State<MiniAppHost> {
       // from a detail screen would drop you all the way to the hub.
       child: PopScope(
         canPop: false,
-        onPopInvokedWithResult: (didPop, result) {
+        onPopInvokedWithResult: (didPop, result) async {
           if (didPop) return;
           final navigator = _navigatorKey.currentState;
-          if (navigator != null && navigator.canPop()) {
-            navigator.pop();
-          } else {
+          if (navigator == null) {
+            Navigator.of(context).pop();
+            return;
+          }
+          // maybePop, not pop: a register keypad (or anything else that
+          // owns a PopScope) must get the back the way the system keyboard
+          // does, instead of the page underneath leaving.
+          final handled = await navigator.maybePop();
+          if (!handled && context.mounted) {
             Navigator.of(context).pop();
           }
         },

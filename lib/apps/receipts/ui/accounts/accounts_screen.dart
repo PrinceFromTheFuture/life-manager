@@ -2,22 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
+import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/account_detail_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_setup_drawer.dart';
-import 'package:shopping_list/apps/receipts/ui/accounts/change_chip.dart';
-import 'package:shopping_list/apps/receipts/ui/accounts/meta_chip.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/glass_passbook.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/ledger_entry_row.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/util/money.dart';
 
-/// What you have, as a handful of passbook pages.
-///
-/// There are never more than a few accounts, so this is a carousel of cards
-/// rather than a list that pretends it might be infinite. Each card is the
-/// account — tap it to open the account, not a payment method hanging off it.
+/// What you have, as frosted passbook pages with the ledger of the page
+/// you are looking at printed underneath.
 class AccountsSection extends ConsumerStatefulWidget {
   const AccountsSection({super.key});
 
@@ -26,7 +22,7 @@ class AccountsSection extends ConsumerStatefulWidget {
 }
 
 class _AccountsSectionState extends ConsumerState<AccountsSection> {
-  late final PageController _pages = PageController(viewportFraction: 0.80);
+  late final PageController _pages = PageController(viewportFraction: 0.86);
   int _page = 0;
 
   @override
@@ -50,28 +46,54 @@ class _AccountsSectionState extends ConsumerState<AccountsSection> {
       ),
       data: (items) {
         if (items.isEmpty) return const _NoAccounts();
-        final height = MediaQuery.sizeOf(context).height * 0.30;
+        final index = _page.clamp(0, items.length - 1);
+        final selected = items[index];
+        final reduce = MediaQuery.disableAnimationsOf(context);
+
         return Column(
           children: [
-            const SizedBox(height: Space.lg),
-            SizedBox(
-              height: height,
-              child: PageView.builder(
-                controller: _pages,
-                itemCount: items.length,
-                onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (context, i) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Space.sm),
-                    child: _AccountCard(standing: items[i]),
-                  );
-                },
+            const SizedBox(height: Space.md),
+            _Enter(
+              reduce: reduce,
+              child: SizedBox(
+                height: 188,
+                child: PageView.builder(
+                  controller: _pages,
+                  itemCount: items.length,
+                  onPageChanged: (i) => setState(() => _page = i),
+                  itemBuilder: (context, i) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                      child: _StandingCard(standing: items[i]),
+                    );
+                  },
+                ),
               ),
             ),
             if (items.length > 1) ...[
               const SizedBox(height: Space.md),
-              _PageMarks(count: items.length, index: _page),
+              _PageMarks(count: items.length, index: index),
             ],
+            const SizedBox(height: Space.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+              child: Text(
+                'LEDGER',
+                style: Type.eyebrow.copyWith(color: palette.faded),
+              ),
+            ),
+            const SizedBox(height: Space.sm),
+            const PerforatedRule(),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: reduce ? Duration.zero : Motion.settle,
+                switchInCurve: Motion.heat,
+                child: _AccountLedger(
+                  key: ValueKey('ledger-${selected.account.id}'),
+                  accountId: selected.account.id!,
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -79,114 +101,101 @@ class _AccountsSectionState extends ConsumerState<AccountsSection> {
   }
 }
 
-/// One passbook page. The balance is the whole point of the card; the chips
-/// are the statement codes that fill the remaining paper.
-class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.standing});
+class _StandingCard extends ConsumerWidget {
+  const _StandingCard({required this.standing});
 
   final AccountStanding standing;
 
   @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final account = standing.account;
-    final retired = account.archivedAt != null;
-    final ink = retired
-        ? palette.faded
-        : standing.balanceMinor < 0
-            ? palette.carbon
-            : palette.print;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accountId = standing.account.id!;
+    final lines = ref.watch(accountLedgerProvider(accountId)).valueOrNull;
+    final today = _todayMoves(lines ?? const []);
 
-    return Semantics(
-      button: true,
-      label: '${account.name}, ${Money.format(standing.balanceMinor)}',
-      child: Material(
-        color: palette.paperShade,
-        shape: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(
-            color: palette.print.withValues(alpha: retired ? 0.18 : 0.35),
-            width: 1.25,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => AccountDetailScreen(accountId: account.id!),
-            ),
-          ),
-          customBorder: const InkPlateBorder(borderRadius: Radii.key),
-          overlayColor: WidgetStatePropertyAll(
-            palette.scorch.withValues(alpha: 0.18),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Space.lg,
-              Space.md,
-              Space.lg,
-              Space.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const PerforatedRule(),
-                const SizedBox(height: Space.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        account.name.toUpperCase(),
-                        style: Type.eyebrow.copyWith(color: palette.faded),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (retired)
-                      Text(
-                        'RETIRED',
-                        style: Type.eyebrow.copyWith(color: palette.faded),
-                      ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  Money.format(standing.balanceMinor),
-                  style: Type.totalDisplay.copyWith(
-                    color: ink,
-                    fontSize: 34,
-                    letterSpacing: -1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: Space.md),
-                Wrap(
-                  spacing: Space.sm,
-                  runSpacing: Space.sm,
-                  children: [
-                    ChangeChip(
-                      deltaMinor: standing.todayDeltaMinor,
-                      balanceMinor: standing.balanceMinor,
-                      compact: true,
-                    ),
-                    for (final method in standing.methods)
-                      MetaChip(label: method.label),
-                    if (standing.owedMinor > 0)
-                      MetaChip(label: '${Money.format(standing.owedMinor)} on cards'),
-                  ],
-                ),
-              ],
-            ),
-          ),
+    return GlassPassbook(
+      standing: standing,
+      inMinor: today.inMinor,
+      outMinor: today.outMinor,
+      onEdit: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => AccountDetailScreen(accountId: accountId),
         ),
       ),
     );
   }
 }
 
-/// Punch-holes under the carousel. The filled one is the page you are on —
-/// the same device as the divider tabs, just smaller.
+class _AccountLedger extends ConsumerWidget {
+  const _AccountLedger({super.key, required this.accountId});
+
+  final int accountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final lines = ref.watch(accountLedgerProvider(accountId));
+
+    return lines.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Space.lg),
+          child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
+        ),
+      ),
+      data: (entries) {
+        if (entries.isEmpty) return const _NoEntries();
+        return ListView.separated(
+          padding: const EdgeInsets.only(bottom: Space.xxl),
+          itemCount: entries.length,
+          separatorBuilder: (context, index) =>
+              const PerforatedRule(indent: Space.lg),
+          itemBuilder: (context, i) => LedgerEntryRow(line: entries[i]),
+        );
+      },
+    );
+  }
+}
+
+class _Enter extends StatelessWidget {
+  const _Enter({required this.child, required this.reduce});
+
+  final Widget child;
+  final bool reduce;
+
+  @override
+  Widget build(BuildContext context) {
+    if (reduce) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Motion.settle,
+      curve: Motion.heat,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, 14 * (1 - t)),
+          child: child,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+({int inMinor, int outMinor}) _todayMoves(List<LedgerLine> lines) {
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, now.day);
+  var inMinor = 0;
+  var outMinor = 0;
+  for (final line in lines) {
+    if (line.entry.occurredAt.isBefore(start)) continue;
+    final amount = line.entry.amountMinor;
+    if (amount > 0) inMinor += amount;
+    if (amount < 0) outMinor += -amount;
+  }
+  return (inMinor: inMinor, outMinor: outMinor);
+}
+
 class _PageMarks extends StatelessWidget {
   const _PageMarks({required this.count, required this.index});
 
@@ -202,11 +211,12 @@ class _PageMarks extends StatelessWidget {
       children: [
         for (var i = 0; i < count; i++) ...[
           if (i > 0) const SizedBox(width: 6),
-          Container(
-            width: 6,
+          AnimatedContainer(
+            duration: Motion.quick,
+            width: i == index ? 14 : 6,
             height: 6,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: Radii.media,
               color: i == index ? palette.print : palette.perforation,
             ),
           ),
@@ -249,6 +259,35 @@ class _NoAccounts extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _NoEntries extends StatelessWidget {
+  const _NoEntries();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+
+    return Padding(
+      padding: const EdgeInsets.all(Space.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Space.lg),
+          Text(
+            'Nothing has moved yet.',
+            style: Type.display.copyWith(color: palette.print, fontSize: 24),
+          ),
+          const SizedBox(height: Space.md),
+          Text(
+            'Every slip paid from this account writes a line here, and so does '
+            'every correction.',
+            style: Type.body.copyWith(color: palette.faded),
+          ),
+        ],
       ),
     );
   }

@@ -16,6 +16,7 @@ import 'package:shopping_list/apps/receipts/ui/stats_screen.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/count_up_money.dart';
 import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
@@ -203,14 +204,24 @@ class _AccountsSummary extends ConsumerWidget {
         children: [
           Text('ON HAND', style: Type.eyebrow.copyWith(color: palette.faded)),
           const SizedBox(height: Space.xs),
-          Text(
-            standings == null ? '—' : Money.format(onHand),
-            style: Type.totalDisplay.copyWith(
-              color: palette.print,
-              fontSize: 48,
-              letterSpacing: -1.8,
+          if (standings == null)
+            Text(
+              '—',
+              style: Type.totalDisplay.copyWith(
+                color: palette.print,
+                fontSize: 48,
+                letterSpacing: -1.8,
+              ),
+            )
+          else
+            CountUpMoney(
+              amountMinor: onHand,
+              style: Type.totalDisplay.copyWith(
+                color: palette.print,
+                fontSize: 48,
+                letterSpacing: -1.8,
+              ),
             ),
-          ),
           const SizedBox(height: Space.sm),
           if (standings != null)
             ChangeChip(deltaMinor: today, balanceMinor: onHand),

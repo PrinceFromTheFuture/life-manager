@@ -74,6 +74,8 @@ class ExpenseRepository {
 
   Future<Expense?> byId(int id) => expenses.byId(id);
 
+  Future<Income?> incomeById(int id) => incomes.byId(id);
+
   Future<List<ExpenseCategory>> categories() => lookups.categories();
   Future<List<Account>> accounts() => lookups.accounts();
 
@@ -508,10 +510,14 @@ class ExpenseRepository {
 
   // ---------------------------------------------------------------- lookups
 
-  Future<ExpenseCategory> addCategory(String name) => lookups.addCategory(name);
+  Future<ExpenseCategory> addCategory(String name, {String? ink}) =>
+      lookups.addCategory(name, ink: ink);
 
   Future<void> renameCategory(int id, String name) =>
       lookups.renameCategory(id, name);
+
+  Future<void> setCategoryInk(int id, String ink) =>
+      lookups.setCategoryInk(id, ink);
 
   Future<int> categoryUsage(int id) => lookups.categoryUsage(id);
 
@@ -527,8 +533,14 @@ class ExpenseRepository {
     String name, {
     String kind = 'other',
     String? last4,
+    String? mark,
   }) async {
-    final created = await lookups.addAccount(name, kind: kind, last4: last4);
+    final created = await lookups.addAccount(
+      name,
+      kind: kind,
+      last4: last4,
+      mark: mark,
+    );
     final existing = await methods.forAccount(created.id!);
     if (existing.isEmpty) {
       await methods.insert(
@@ -545,6 +557,9 @@ class ExpenseRepository {
 
   Future<void> renameAccount(int id, String name) =>
       lookups.renameAccount(id, name);
+
+  Future<void> setAccountMark(int id, String mark) =>
+      lookups.setAccountMark(id, mark);
 
   Future<int> accountUsage(int id) => lookups.accountUsage(id);
 

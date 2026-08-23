@@ -34,19 +34,16 @@ enum ApiKeyKind {
   final String where;
 }
 
-/// Holds API keys in the platform keystore.
+/// Holds API keys on this phone.
 ///
-/// Keys are never in the repository, never in source, and never compiled into
-/// the APK — anything baked into a build can be extracted from it by anyone
-/// holding the file. Here they are entered once on the device, encrypted by the
-/// Android Keystore, and can be replaced without a rebuild.
+/// They are entered once and stored by the platform, never compiled into the
+/// APK. A full copy dumps them too — this app is local, and restore has to
+/// bring scanning back with everything else.
 class ApiKeyStore {
   const ApiKeyStore(this._storage);
 
   final FlutterSecureStorage _storage;
 
-  // AES-GCM with RSA-OAEP key wrapping. This exists only as the single
-  // place every call site points at, in case that ever needs to change.
   static const AndroidOptions _androidOptions = AndroidOptions.defaultOptions;
 
   Future<String?> read(ApiKeyKind kind) =>
@@ -67,6 +64,30 @@ class ApiKeyStore {
 
   Future<void> clear(ApiKeyKind kind) =>
       _storage.delete(key: kind.storageKey, aOptions: _androidOptions);
+
+  /// Every key this phone is holding. Used by the full-app copy.
+  Future<Map<String, String>> exportAll() async {
+    final all = await _storage.readAll(aOptions: _androidOptions);
+    return {
+      for (final e in all.entries)
+        if (e.value.trim().isNotEmpty) e.key: e.value.trim(),
+    };
+  }
+
+  /// Replaces every key with [values]. Missing entries are cleared, so a
+  /// restore matches the copy rather than merging with leftovers.
+  Future<void> importAll(Map<String, String> values) async {
+    await _storage.deleteAll(aOptions: _androidOptions);
+    for (final e in values.entries) {
+      final trimmed = e.value.trim();
+      if (trimmed.isEmpty) continue;
+      await _storage.write(
+        key: e.key,
+        value: trimmed,
+        aOptions: _androidOptions,
+      );
+    }
+  }
 
   /// Which keys are present, without returning any of them.
   ///

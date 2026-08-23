@@ -291,6 +291,7 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
                           SheetChip(
                             label: category.name,
                             selected: category.id == _categoryId,
+                            ink: category.stamp,
                             onTap: () => setState(() {
                               _categoryId = category.id;
                               _keypadOpen = false;

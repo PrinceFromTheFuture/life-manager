@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/finance/installment_plan.dart';
+import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/data/ocr/receipt_scanner.dart';
@@ -14,6 +15,7 @@ import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
 import 'package:shopping_list/apps/receipts/ui/print_slip.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
+import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
@@ -89,8 +91,33 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
   bool _scanChoiceMade = false;
   bool _scanning = false;
   bool _locationSettled = false;
+  bool _leaving = false;
+
+  /// Calendar day the sheet opened, so picking a different day counts as
+  /// entered data without treating "now" ticking as a change.
+  late final DateTime _openedDay;
 
   bool get _isEditing => widget.existing != null;
+
+  /// Anything that would be lost if this new expense is thrown away.
+  ///
+  /// Autofill does not count: last payment method and a guessed category are
+  /// the app helping, not the person typing. A receipt photo does — that is
+  /// the whole point of this screen.
+  bool get _hasEnteredData {
+    if (_receiptSourcePath != null) return true;
+    if (!_amount.isEmpty) return true;
+    if (_merchantController.text.trim().isNotEmpty) return true;
+    if (_noteController.text.trim().isNotEmpty) return true;
+    if (_locationController.text.trim().isNotEmpty) return true;
+    if (_categoryChosenByHand) return true;
+    if (_methodChosenByHand) return true;
+    if (_installments != 1 || _interestBp != 0) return true;
+    if (_isBusiness) return true;
+    final day = DateTime(_occurredAt.year, _occurredAt.month, _occurredAt.day);
+    if (day != _openedDay) return true;
+    return false;
+  }
 
   @override
   void initState() {
@@ -133,7 +160,17 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       unawaited(_preselectMethod());
     }
 
+    _openedDay = DateTime(_occurredAt.year, _occurredAt.month, _occurredAt.day);
     _merchantController.addListener(_onMerchantChanged);
+    if (existing == null) {
+      _merchantController.addListener(_markDraft);
+      _noteController.addListener(_markDraft);
+      _locationController.addListener(_markDraft);
+    }
+  }
+
+  void _markDraft() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -418,6 +455,65 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
     return null;
   }
 
+  /// Escape, the system back, and the close button all come through here.
+  ///
+  /// A register keypad still eats the first back, the way the system keyboard
+  /// does. The close button is an explicit discard, so it asks immediately.
+  Future<void> _requestLeave({bool fromCloseButton = false}) async {
+    if (_leaving) return;
+    if (!fromCloseButton && _keypadOpen) return;
+
+    if (!_isEditing && _hasEnteredData) {
+      _leaving = true;
+      final leave = await _confirmLeave();
+      _leaving = false;
+      if (!leave || !mounted) return;
+    }
+    if (!mounted) return;
+    _popSheet();
+  }
+
+  Future<bool> _confirmLeave() async {
+    final palette = context.thermal;
+    return await showDialog<bool>(
+          context: context,
+          useRootNavigator: false,
+          builder: (context) => AlertDialog(
+            backgroundColor: palette.paper,
+            surfaceTintColor: Colors.transparent,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            titleTextStyle:
+                Type.display.copyWith(fontSize: 20, color: palette.print),
+            contentTextStyle: Type.body.copyWith(color: palette.print),
+            title: const Text('Leave this expense?'),
+            content: const Text(
+              'Are you sure you want to leave? It is not recorded yet.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Stay'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Leave'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _popSheet() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+      return;
+    }
+    // Hub quick action opens this sheet as the mini-app's only route.
+    Navigator.of(context, rootNavigator: true).pop();
+  }
+
   // ------------------------------------------------------------------ build
 
   @override
@@ -455,17 +551,24 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       body = _buildForm();
     }
 
-    return Scaffold(
-      backgroundColor: palette.paper,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          tooltip: 'Discard',
-          onPressed: () => Navigator.of(context).pop(),
+    return PopScope(
+      canPop: _isEditing || !_hasEnteredData,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        unawaited(_requestLeave());
+      },
+      child: Scaffold(
+        backgroundColor: palette.paper,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Discard',
+            onPressed: () => unawaited(_requestLeave(fromCloseButton: true)),
+          ),
+          title: Text(_isEditing ? 'Edit expense' : 'New expense'),
         ),
-        title: Text(_isEditing ? 'Edit expense' : 'New expense'),
+        body: body,
       ),
-      body: body,
     );
   }
 
@@ -947,6 +1050,7 @@ class _CategoryChips extends ConsumerWidget {
             _Chip(
               label: c.name,
               selected: c.id == selected,
+              ink: c.stamp,
               onTap: () => onSelected(c.id!),
             ),
         ],
@@ -1118,19 +1222,22 @@ class _Chip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.ink,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final CategoryInk? ink;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final light = Theme.of(context).brightness == Brightness.light;
+    final fill = ink?.of(Theme.of(context).brightness) ?? palette.carbon;
+    final onFill = palette.paper;
 
     return Material(
-      color: selected ? palette.carbon : palette.paperShade,
+      color: selected ? fill : palette.paperShade,
       borderRadius: Radii.control,
       child: InkWell(
         borderRadius: Radii.control,
@@ -1140,13 +1247,20 @@ class _Chip extends StatelessWidget {
             horizontal: Space.md + 2,
             vertical: Space.sm + 2,
           ),
-          child: Text(
-            label,
-            style: Type.body.copyWith(
-              color: selected
-                  ? (light ? palette.paper : palette.print)
-                  : palette.print,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (ink != null && !selected) ...[
+                CategoryStamp(ink: ink!, size: 8),
+                const SizedBox(width: Space.sm),
+              ],
+              Text(
+                label,
+                style: Type.body.copyWith(
+                  color: selected ? onFill : palette.print,
+                ),
+              ),
+            ],
           ),
         ),
       ),
