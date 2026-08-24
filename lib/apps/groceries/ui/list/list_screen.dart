@@ -15,6 +15,7 @@ import 'package:shopping_list/apps/groceries/ui/pickup/pickup_screen.dart';
 import 'package:shopping_list/apps/groceries/ui/list/add_item_bar.dart';
 import 'package:shopping_list/apps/groceries/ui/list/item_row.dart';
 import 'package:shopping_list/apps/groceries/ui/list/quantity_sheet.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The main shopping list — a continuous roll of paper.
 ///
@@ -38,7 +39,7 @@ class ListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'Past trips',
-            icon: const Icon(Icons.receipt_long_outlined),
+            icon: const AppIcon(SolarIcons.BillList),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const HistoryScreen(),
@@ -186,7 +187,7 @@ class _DismissibleRow extends ConsumerWidget {
             color: palette.paperShade,
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: Space.lg),
-            child: Icon(Icons.delete_outline, color: palette.faded),
+            child: AppIcon(SolarIcons.TrashBinMinimalistic, color: palette.faded),
           ),
           onDismissed: (_) async {
             final controller = ref.read(activeListProvider.notifier);

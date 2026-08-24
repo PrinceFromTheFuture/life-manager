@@ -8,6 +8,7 @@ import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Add, rename, reorder and remove the expense categories.
 ///
@@ -195,7 +196,7 @@ class _LookupTile extends ConsumerWidget {
           const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
       child: Row(
         children: [
-          Icon(Icons.drag_indicator, size: 18, color: palette.faded),
+          AppIcon(SolarIcons.HamburgerMenu, size: 18, color: palette.faded),
           const SizedBox(width: Space.md),
           Tooltip(
             message: 'Change ink',
@@ -229,7 +230,7 @@ class _LookupTile extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20),
+            icon: const AppIcon(SolarIcons.TrashBinMinimalistic, size: 20),
             color: palette.faded,
             tooltip: 'Delete',
             onPressed: () => _delete(context, ref),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/account_detail_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_setup_drawer.dart';
@@ -22,8 +23,9 @@ class AccountsSection extends ConsumerStatefulWidget {
 }
 
 class _AccountsSectionState extends ConsumerState<AccountsSection> {
-  late final PageController _pages = PageController(viewportFraction: 0.86);
+  late final PageController _pages = PageController(viewportFraction: 0.88);
   int _page = 0;
+  int? _viewId;
 
   @override
   void dispose() {
@@ -35,6 +37,16 @@ class _AccountsSectionState extends ConsumerState<AccountsSection> {
   Widget build(BuildContext context) {
     final palette = context.thermal;
     final standings = ref.watch(accountStandingsProvider);
+    final views = ref.watch(accountViewsProvider).valueOrNull ?? const [];
+    final activeId = ref.watch(activeAccountViewIdProvider).valueOrNull;
+    final view = viewById(views, activeId);
+
+    ref.listen<AsyncValue<int?>>(activeAccountViewIdProvider, (prev, next) {
+      if (next.valueOrNull == _viewId) return;
+      _viewId = next.valueOrNull;
+      _page = 0;
+      if (_pages.hasClients) _pages.jumpToPage(0);
+    });
 
     return standings.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -44,8 +56,11 @@ class _AccountsSectionState extends ConsumerState<AccountsSection> {
           child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
         ),
       ),
-      data: (items) {
-        if (items.isEmpty) return const _NoAccounts();
+      data: (all) {
+        final items = standingsInView(all, view, forHeadline: false);
+        if (items.isEmpty) {
+          return view == null ? const _NoAccounts() : const _EmptyView();
+        }
         final index = _page.clamp(0, items.length - 1);
         final selected = items[index];
         final reduce = MediaQuery.disableAnimationsOf(context);
@@ -59,11 +74,15 @@ class _AccountsSectionState extends ConsumerState<AccountsSection> {
                 height: 188,
                 child: PageView.builder(
                   controller: _pages,
+                  padEnds: false,
                   itemCount: items.length,
                   onPageChanged: (i) => setState(() => _page = i),
                   itemBuilder: (context, i) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                      padding: EdgeInsets.only(
+                        left: i == 0 ? Space.lg : Space.sm,
+                        right: Space.sm,
+                      ),
                       child: _StandingCard(standing: items[i]),
                     );
                   },
@@ -116,7 +135,7 @@ class _StandingCard extends ConsumerWidget {
       standing: standing,
       inMinor: today.inMinor,
       outMinor: today.outMinor,
-      onEdit: () => Navigator.of(context).push(
+      onOpen: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => AccountDetailScreen(accountId: accountId),
         ),
@@ -256,6 +275,38 @@ class _NoAccounts extends StatelessWidget {
             OutlinedButton(
               onPressed: () => openAddAccountDrawer(context),
               child: const Text('Add an account'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyView extends StatelessWidget {
+  const _EmptyView();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const PerforatedRule(),
+            const SizedBox(height: Space.lg),
+            Text(
+              'Nothing in this view.',
+              style: Type.display.copyWith(color: palette.print, fontSize: 28),
+            ),
+            const SizedBox(height: Space.md),
+            Text(
+              'Edit the view and pick the accounts it should add up.',
+              style: Type.body.copyWith(color: palette.faded),
             ),
           ],
         ),

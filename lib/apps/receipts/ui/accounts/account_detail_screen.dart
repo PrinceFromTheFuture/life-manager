@@ -14,6 +14,7 @@ import 'package:shopping_list/apps/receipts/ui/accounts/payment_method_sheet.dar
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One account, elevated: what it is, what pays from it, and every line
 /// that built the balance.
@@ -39,12 +40,12 @@ class AccountDetailScreen extends ConsumerWidget {
           if (account != null) ...[
             IconButton(
               tooltip: 'Edit account',
-              icon: const Icon(Icons.edit_outlined),
+              icon: const AppIcon(SolarIcons.PenNewSquare),
               onPressed: () => AccountSheet.open(context, existing: account),
             ),
             IconButton(
               tooltip: 'Retire account',
-              icon: const Icon(Icons.delete_outline),
+              icon: const AppIcon(SolarIcons.TrashBinMinimalistic),
               onPressed: () => _retire(context, ref, account.id!),
             ),
           ],

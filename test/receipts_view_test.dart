@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
-import 'package:shopping_list/apps/receipts/data/models/month_kind_totals.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
 
 void main() {
@@ -165,88 +164,116 @@ void main() {
       expect(tape.last.amountMinor, 7000);
     });
 
-    test('statement weeks bucket a month the way a statement does', () {
-      final weeks = ReceiptsView.statementWeeks(
-        [
-          slip(at: DateTime(2026, 8, 3), amount: 1000),
-          slip(
-            at: DateTime(2026, 8, 10),
-            amount: 2000,
-            business: true,
-          ),
-          slip(at: DateTime(2026, 8, 30), amount: 4000),
-        ],
+    test('a week starts on Monday, a month on the first', () {
+      // 24 Aug 2026 is a Monday; the 4th is the Tuesday of that earlier week.
+      final week = StatsPeriod.containing(
+        DateTime(2026, 8, 4),
+        StatsGrain.week,
+      );
+      expect(week.start, DateTime(2026, 8, 3));
+      expect(week.dayCount, 7);
+      expect(week.lastDay, DateTime(2026, 8, 9));
+
+      final month = StatsPeriod.containing(
+        DateTime(2026, 8, 24),
+        StatsGrain.month,
+      );
+      expect(month.start, DateTime(2026, 8));
+      expect(month.dayCount, 31);
+      expect(
+        week.withGrain(StatsGrain.month).start,
         DateTime(2026, 8),
       );
-      expect(weeks, hasLength(5));
-      expect(weeks[0].amountMinor, 1000);
-      expect(weeks[1].businessMinor, 2000);
-      expect(weeks[4].fromDay, 29);
-      expect(weeks[4].toDay, 31);
-      expect(weeks[4].amountMinor, 4000);
     });
 
-    test('daily kind splits a mixed day', () {
-      final days = ReceiptsView.dailyKind(
+    test('you cannot step a span past the one that holds today', () {
+      final now = DateTime(2026, 8, 24, 15);
+      final current = StatsPeriod.current(now: now);
+      expect(current.start, DateTime(2026, 8, 24));
+      expect(current.canAdvance(now: now), isFalse);
+      expect(current.previous.canAdvance(now: now), isTrue);
+    });
+
+    test('daily stacks split a mixed day by category, busiest ink at the bottom',
+        () {
+      final period = StatsPeriod.containing(
+        DateTime(2026, 8, 4),
+        StatsGrain.week,
+      );
+      final days = ReceiptsView.dailyStacks(
         [
           slip(
-            at: DateTime(2026, 8, 4),
+            at: DateTime(2026, 8, 4, 10),
             amount: 1000,
-            business: true,
+            categoryId: 1,
           ),
-          slip(at: DateTime(2026, 8, 4), amount: 3000),
+          slip(
+            at: DateTime(2026, 8, 4, 12),
+            amount: 4000,
+            categoryId: 2,
+          ),
+          slip(
+            at: DateTime(2026, 8, 5),
+            amount: 2000,
+            categoryId: 1,
+          ),
         ],
-        DateTime(2026, 8),
+        period,
       );
-      expect(days[3].day, 4);
-      expect(days[3].businessMinor, 1000);
-      expect(days[3].personalMinor, 3000);
+      expect(days, hasLength(7));
+      expect(days[1].day, DateTime(2026, 8, 4));
+      expect(days[1].totalMinor, 5000);
+      expect(days[1].slices.map((s) => s.categoryId), [2, 1]);
+      expect(days[2].totalMinor, 2000);
+      expect(days[0].totalMinor, 0);
     });
 
-    test('the register keeps blank months so a gap still prints', () {
-      final filled = ReceiptsView.registerMonths(
+    test('category totals rank pads by take, and the series keeps quiet days',
+        () {
+      final period = StatsPeriod.containing(
+        DateTime(2026, 8, 4),
+        StatsGrain.week,
+      );
+      final items = [
+        slip(
+          at: DateTime(2026, 8, 4),
+          amount: 1000,
+          categoryId: 1,
+        ),
+        slip(
+          at: DateTime(2026, 8, 4),
+          amount: 4000,
+          categoryId: 2,
+        ),
+        slip(
+          at: DateTime(2026, 8, 5),
+          amount: 2000,
+          categoryId: 1,
+        ),
+      ];
+      final totals = ReceiptsView.categoryTotals(items);
+      expect(totals.first.categoryId, 2);
+      expect(totals.first.amountMinor, 4000);
+      expect(totals.last.categoryId, 1);
+      expect(totals.last.count, 2);
+
+      final series = ReceiptsView.categorySeries(items, period, 1);
+      expect(series, hasLength(7));
+      expect(series[1], 1000);
+      expect(series[2], 2000);
+      expect(series[0], 0);
+    });
+
+    test('onDay keeps the slips of one calendar day, oldest first', () {
+      final slips = ReceiptsView.onDay(
         [
-          MonthKindTotals(
-            month: DateTime(2026, 8),
-            businessMinor: 100,
-            personalMinor: 50,
-          ),
+          slip(id: 1, at: DateTime(2026, 8, 4, 18), amount: 3000),
+          slip(id: 2, at: DateTime(2026, 8, 4, 9), amount: 1000),
+          slip(id: 3, at: DateTime(2026, 8, 5), amount: 2000),
         ],
-        now: DateTime(2026, 8, 18),
-        months: 3,
+        DateTime(2026, 8, 4),
       );
-      expect(filled, hasLength(3));
-      expect(filled[0].month, DateTime(2026, 6));
-      expect(filled[0].totalMinor, 0);
-      expect(filled[2].businessMinor, 100);
-    });
-
-    test('pace projects the open month from spend to date', () {
-      final pace = ReceiptsView.pace(
-        month: DateTime(2026, 8),
-        thisMonth: [
-          slip(at: DateTime(2026, 8, 5), amount: 10000),
-          slip(at: DateTime(2026, 8, 20), amount: 5000),
-        ],
-        lastMonthToDate: 8000,
-        now: DateTime(2026, 8, 10),
-      );
-      expect(pace.day, 10);
-      expect(pace.daysInMonth, 31);
-      expect(pace.spentToDate, 10000);
-      expect(pace.projected, 31000);
-      expect(pace.deltaToDate, 2000);
-      expect(pace.monthComplete, isFalse);
-    });
-
-    test('Friday and Saturday count as the weekend', () {
-      // 14 Aug 2026 is a Friday, 16 Aug is a Sunday.
-      final spend = ReceiptsView.weekendSpend([
-        slip(at: DateTime(2026, 8, 14), amount: 1000),
-        slip(at: DateTime(2026, 8, 15), amount: 2000),
-        slip(at: DateTime(2026, 8, 16), amount: 4000),
-      ]);
-      expect(spend, 3000);
+      expect(slips.map((e) => e.id), [2, 1]);
     });
   });
 }

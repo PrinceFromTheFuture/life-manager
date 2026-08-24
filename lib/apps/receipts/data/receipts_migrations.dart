@@ -344,5 +344,39 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         ''',
       ],
     ),
+
+    // Named groups of accounts. "To spend" is not the same number as
+    // "net worth"; the page shows one group at a time rather than pretending
+    // every pot is equally reachable.
+    Migration(
+      version: 6,
+      statements: [
+        '''
+        CREATE TABLE account_views (
+          id   INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT    NOT NULL,
+          sort INTEGER NOT NULL DEFAULT 0
+        )
+        ''',
+        '''
+        CREATE TABLE account_view_members (
+          view_id    INTEGER NOT NULL
+                             REFERENCES account_views(id) ON DELETE CASCADE,
+          account_id INTEGER NOT NULL
+                             REFERENCES accounts(id) ON DELETE CASCADE,
+          PRIMARY KEY (view_id, account_id)
+        )
+        ''',
+        '''
+        CREATE TABLE account_view_state (
+          id             INTEGER PRIMARY KEY CHECK (id = 1),
+          active_view_id INTEGER REFERENCES account_views(id) ON DELETE SET NULL
+        )
+        ''',
+        '''
+        INSERT INTO account_view_state (id, active_view_id) VALUES (1, NULL)
+        ''',
+      ],
+    ),
   ],
 );

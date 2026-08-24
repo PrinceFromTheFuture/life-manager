@@ -5,6 +5,7 @@ import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The hub's way into the mini-apps: a 2×3 cluster, not a scrolling strip.
 ///
@@ -142,9 +143,10 @@ class _Tile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _IconWell(
-                  icon: app?.icon ?? Icons.more_horiz,
-                  fill: slot.soon ? palette.perforation : ink,
-                  glyph: slot.soon ? palette.faded : palette.paper,
+                  icon: app?.icon ?? SolarIcons.MenuDots,
+                  fill: (slot.soon ? palette.faded : ink)
+                      .withValues(alpha: 0.10),
+                  glyph: slot.soon ? palette.faded : ink,
                 ),
                 const SizedBox(height: Space.xs),
                 Column(
@@ -183,7 +185,8 @@ class _Tile extends StatelessWidget {
   }
 }
 
-/// The app's ink, as a small pad the icon sits on — not a floating glyph.
+/// The glyph is the app's ink. The pad around it is that same ink at 10%,
+/// so the well is a wash, not a solid stamp.
 class _IconWell extends StatelessWidget {
   const _IconWell({
     required this.icon,
@@ -191,7 +194,7 @@ class _IconWell extends StatelessWidget {
     required this.glyph,
   });
 
-  final IconData icon;
+  final SolarIconData icon;
   final Color fill;
   final Color glyph;
 
@@ -206,7 +209,7 @@ class _IconWell extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(Space.sm),
-        child: Icon(icon, size: 19, color: glyph),
+        child: AppIcon(icon, size: 19, color: glyph),
       ),
     );
   }

@@ -11,6 +11,7 @@ import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Describing a way of paying.
 ///
@@ -196,7 +197,7 @@ class _PaymentMethodSheetState extends ConsumerState<PaymentMethodSheet> {
       backgroundColor: palette.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const AppIcon(SolarIcons.CloseCircle),
           tooltip: 'Discard',
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -205,7 +206,7 @@ class _PaymentMethodSheetState extends ConsumerState<PaymentMethodSheet> {
           if (_isEditing)
             IconButton(
               tooltip: 'Retire',
-              icon: const Icon(Icons.archive_outlined),
+              icon: const AppIcon(SolarIcons.Archive),
               onPressed: _archive,
             ),
           const SizedBox(width: Space.sm),

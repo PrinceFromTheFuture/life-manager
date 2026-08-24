@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/util/load.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The load being typed, held as digits rather than parsed text.
 ///
@@ -231,7 +232,7 @@ class SetKeypad extends StatelessWidget {
               Expanded(
                 child: _Key(
                   semanticLabel: 'Backspace',
-                  icon: Icons.backspace_outlined,
+                  icon: SolarIcons.Backspace,
                   onTap: _backspace,
                   onLongPress: _clear,
                 ),
@@ -263,7 +264,7 @@ class _Key extends StatelessWidget {
   });
 
   final String? label;
-  final IconData? icon;
+  final SolarIconData? icon;
   final String? semanticLabel;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
@@ -288,7 +289,7 @@ class _Key extends StatelessWidget {
               height: 56,
               child: Center(
                 child: icon != null
-                    ? Icon(icon, size: 22, color: palette.print)
+                    ? AppIcon(icon!, size: 22, color: palette.print)
                     : Text(
                         label!,
                         style: Type.totalDisplay.copyWith(

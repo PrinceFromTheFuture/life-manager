@@ -10,6 +10,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/load.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One movement's history across workouts.
 ///
@@ -236,7 +237,7 @@ class _WorkoutRow extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Open this day',
-                icon: const Icon(Icons.chevron_right),
+                icon: const AppIcon(SolarIcons.AltArrowRight),
                 color: palette.faded,
                 onPressed: onOpenPass,
               ),

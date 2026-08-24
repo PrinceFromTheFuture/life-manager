@@ -4,6 +4,7 @@ import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/data/location_service.dart';
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/data/models/income.dart';
@@ -291,6 +292,18 @@ final accountStandingsProvider =
   return ref.watch(expenseRepositoryProvider).standings();
 });
 
+final accountViewsProvider = FutureProvider<List<AccountView>>((ref) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).accountViews();
+});
+
+/// Null is All — every live account. Whatever was selected last is what
+/// comes back the next time Accounts opens.
+final activeAccountViewIdProvider = FutureProvider<int?>((ref) {
+  ref.watch(financeRevisionProvider);
+  return ref.watch(expenseRepositoryProvider).activeAccountViewId();
+});
+
 final accountLedgerProvider =
     FutureProvider.autoDispose.family<List<LedgerLine>, int>((ref, accountId) {
   ref.watch(expensesProvider);
@@ -355,6 +368,23 @@ class FinanceController {
   Future<void> archiveAccount(int id) async {
     await _repo.archiveAccount(id);
     ref.invalidate(accountsProvider);
+    _touch();
+  }
+
+  Future<AccountView> saveAccountView(AccountView view) async {
+    final saved = await _repo.saveAccountView(view);
+    await _repo.setActiveAccountView(saved.id);
+    _touch();
+    return saved;
+  }
+
+  Future<void> selectAccountView(int? id) async {
+    await _repo.setActiveAccountView(id);
+    _touch();
+  }
+
+  Future<void> deleteAccountView(int id) async {
+    await _repo.deleteAccountView(id);
     _touch();
   }
 
@@ -425,6 +455,31 @@ final receiptsLensProvider =
 
 final receiptsSortProvider =
     StateProvider<ReceiptsSort>((ref) => ReceiptsSort.newest);
+
+/// The span statistics is standing on. Independent of [selectedMonthProvider]
+/// so paging a week does not yank the slips list off the month it was on.
+final statsPeriodProvider = StateProvider<StatsPeriod>(
+  (ref) => StatsPeriod.current(),
+);
+
+/// Every slip in the statistics span. A real query rather than a filter of
+/// [expensesProvider]'s cap — a week several months back must not come up
+/// empty because it fell off that page.
+final statsExpensesProvider = FutureProvider.autoDispose<List<Expense>>((ref) {
+  ref.watch(expensesProvider);
+  final period = ref.watch(statsPeriodProvider);
+  return ref
+      .watch(expenseRepositoryProvider)
+      .between(period.start, period.endExclusive);
+});
+
+final statsTotalProvider = FutureProvider.autoDispose<int>((ref) {
+  ref.watch(expensesProvider);
+  final period = ref.watch(statsPeriodProvider);
+  return ref
+      .watch(expenseRepositoryProvider)
+      .totalBetween(period.start, period.endExclusive);
+});
 
 /// Business vs personal, month by month, so statistics can show what was
 /// claimed without opening every slip.

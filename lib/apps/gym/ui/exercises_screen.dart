@@ -6,6 +6,7 @@ import 'package:shopping_list/apps/gym/state/providers.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The catalogue. What is on the rack is what the recorder offers.
 class ExercisesScreen extends ConsumerWidget {
@@ -184,7 +185,7 @@ class _ExerciseTile extends ConsumerWidget {
           const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.sm, Space.sm),
       child: Row(
         children: [
-          Icon(Icons.drag_indicator, size: 18, color: palette.faded),
+          AppIcon(SolarIcons.HamburgerMenu, size: 18, color: palette.faded),
           const SizedBox(width: Space.md),
           Expanded(
             child: InkWell(
@@ -213,7 +214,7 @@ class _ExerciseTile extends ConsumerWidget {
                 ref.read(gymControllerProvider).setOnRack(row.id!, v),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20),
+            icon: const AppIcon(SolarIcons.TrashBinMinimalistic, size: 20),
             color: palette.faded,
             tooltip: 'Delete',
             onPressed: () => _delete(context, ref),

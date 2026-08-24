@@ -1,8 +1,8 @@
+import 'package:shopping_list/apps/receipts/data/finance/calendar.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
-import 'package:shopping_list/apps/receipts/data/models/month_kind_totals.dart';
 
 /// How the month's slips are cut. Named for a filing question, not a date
-/// range — the month selector already owns time.
+/// range — the month selector already owns time on the roll of slips.
 enum ReceiptsLens {
   all,
 
@@ -39,59 +39,151 @@ class MerchantTotal {
   final int amountMinor;
 }
 
-/// One statement-week inside a month: days 1–7, 8–14, 15–21, 22–28, 29–end.
-class StatementWeek {
-  const StatementWeek({
-    required this.index,
-    required this.fromDay,
-    required this.toDay,
+/// Week or month, the two grains statistics can stand on.
+enum StatsGrain { week, month }
+
+/// A closed span of days statistics is looking at.
+///
+/// [start] is local midnight on the first day — Monday for a week, the 1st
+/// for a month — so it can double as a query bound.
+class StatsPeriod {
+  const StatsPeriod({required this.grain, required this.start});
+
+  final StatsGrain grain;
+  final DateTime start;
+
+  factory StatsPeriod.containing(DateTime date, StatsGrain grain) {
+    final day = Calendar.startOfDay(date);
+    return StatsPeriod(
+      grain: grain,
+      start: grain == StatsGrain.week
+          ? Calendar.startOfWeek(day)
+          : Calendar.startOfMonth(day),
+    );
+  }
+
+  factory StatsPeriod.current({
+    DateTime? now,
+    StatsGrain grain = StatsGrain.week,
+  }) =>
+      StatsPeriod.containing(now ?? DateTime.now(), grain);
+
+  /// Exclusive end, so a `between` query does not leak into the next span.
+  DateTime get endExclusive => grain == StatsGrain.week
+      ? start.add(const Duration(days: 7))
+      : DateTime(start.year, start.month + 1);
+
+  DateTime get lastDay => endExclusive.subtract(const Duration(days: 1));
+
+  int get dayCount => endExclusive.difference(start).inDays;
+
+  List<DateTime> get days => [
+        for (var i = 0; i < dayCount; i++) start.add(Duration(days: i)),
+      ];
+
+  bool contains(DateTime date) {
+    final day = Calendar.startOfDay(date.toLocal());
+    return !day.isBefore(start) && day.isBefore(endExclusive);
+  }
+
+  StatsPeriod get previous => StatsPeriod(
+        grain: grain,
+        start: grain == StatsGrain.week
+            ? start.subtract(const Duration(days: 7))
+            : DateTime(start.year, start.month - 1),
+      );
+
+  StatsPeriod get next => StatsPeriod(
+        grain: grain,
+        start: grain == StatsGrain.week
+            ? start.add(const Duration(days: 7))
+            : DateTime(start.year, start.month + 1),
+      );
+
+  bool isCurrent({DateTime? now}) {
+    final current = StatsPeriod.containing(now ?? DateTime.now(), grain);
+    return current.start == start;
+  }
+
+  bool canAdvance({DateTime? now}) {
+    final current = StatsPeriod.containing(now ?? DateTime.now(), grain);
+    return start.isBefore(current.start);
+  }
+
+  StatsPeriod withGrain(StatsGrain grain) {
+    if (grain == this.grain) return this;
+    return StatsPeriod.containing(start, grain);
+  }
+
+  StatsPeriod at(DateTime date) => StatsPeriod.containing(date, grain);
+
+  /// How many grains [other] is from this one. Same grain only.
+  int offsetTo(StatsPeriod other) {
+    if (other.grain != grain) return 0;
+    if (grain == StatsGrain.week) {
+      return other.start.difference(start).inDays ~/ 7;
+    }
+    return (other.start.year - start.year) * 12 +
+        (other.start.month - start.month);
+  }
+
+  StatsPeriod shift(int steps) {
+    if (steps == 0) return this;
+    if (grain == StatsGrain.week) {
+      return StatsPeriod(
+        grain: grain,
+        start: start.add(Duration(days: 7 * steps)),
+      );
+    }
+    return StatsPeriod(
+      grain: grain,
+      start: DateTime(start.year, start.month + steps),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is StatsPeriod && other.grain == grain && other.start == start;
+
+  @override
+  int get hashCode => Object.hash(grain, start);
+}
+
+/// One category's take on a day, so a well can print its inks in order.
+class CategorySlice {
+  const CategorySlice({
+    required this.categoryId,
     required this.amountMinor,
-    required this.businessMinor,
-    required this.personalMinor,
   });
 
-  final int index;
-  final int fromDay;
-  final int toDay;
+  final int? categoryId;
   final int amountMinor;
-  final int businessMinor;
-  final int personalMinor;
 }
 
-/// Spend on one calendar day, split so a column can print both inks.
-class DayKindSpend {
-  const DayKindSpend({
+/// Spend on one calendar day, stacked by category rather than by kind.
+class DayCategorySpend {
+  const DayCategorySpend({
     required this.day,
-    required this.businessMinor,
-    required this.personalMinor,
+    required this.slices,
+    required this.totalMinor,
   });
 
-  final int day;
-  final int businessMinor;
-  final int personalMinor;
-
-  int get totalMinor => businessMinor + personalMinor;
+  final DateTime day;
+  final List<CategorySlice> slices;
+  final int totalMinor;
 }
 
-/// Where this month sits against the same day last month.
-class MonthPace {
-  const MonthPace({
-    required this.day,
-    required this.daysInMonth,
-    required this.spentToDate,
-    required this.lastMonthToDate,
-    required this.projected,
-    required this.monthComplete,
+/// One category's take on a period.
+class CategorySpend {
+  const CategorySpend({
+    required this.categoryId,
+    required this.amountMinor,
+    required this.count,
   });
 
-  final int day;
-  final int daysInMonth;
-  final int spentToDate;
-  final int lastMonthToDate;
-  final int projected;
-  final bool monthComplete;
-
-  int get deltaToDate => spentToDate - lastMonthToDate;
+  final int? categoryId;
+  final int amountMinor;
+  final int count;
 }
 
 abstract final class ReceiptsView {
@@ -156,6 +248,11 @@ abstract final class ReceiptsView {
   static int totalOf(List<Expense> expenses) =>
       expenses.fold(0, (sum, e) => sum + e.amountMinor);
 
+  static DateTime dayOf(Expense expense) {
+    final local = expense.occurredAt.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
   static List<MerchantTotal> merchantTape(List<Expense> expenses) {
     final map = <String, MerchantTotal>{};
     for (final e in expenses) {
@@ -176,133 +273,91 @@ abstract final class ReceiptsView {
     return rows;
   }
 
-  static List<StatementWeek> statementWeeks(
-    List<Expense> expenses,
-    DateTime month,
-  ) {
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final bounds = <(int, int)>[
-      (1, 7),
-      (8, 14),
-      (15, 21),
-      (22, 28),
-      if (daysInMonth > 28) (29, daysInMonth),
-    ];
-    final weeks = [
-      for (var i = 0; i < bounds.length; i++)
-        StatementWeek(
-          index: i,
-          fromDay: bounds[i].$1,
-          toDay: bounds[i].$2.clamp(1, daysInMonth),
-          amountMinor: 0,
-          businessMinor: 0,
-          personalMinor: 0,
+  /// Categories ranked by take, busiest first — the order every chart in
+  /// statistics uses, so a pad of ink sits in the same place on the well,
+  /// the ring, and the list.
+  static List<CategorySpend> categoryTotals(List<Expense> expenses) {
+    final amounts = <int?, int>{};
+    final counts = <int?, int>{};
+    for (final e in expenses) {
+      amounts[e.categoryId] = (amounts[e.categoryId] ?? 0) + e.amountMinor;
+      counts[e.categoryId] = (counts[e.categoryId] ?? 0) + 1;
+    }
+    final rows = [
+      for (final id in amounts.keys)
+        CategorySpend(
+          categoryId: id,
+          amountMinor: amounts[id]!,
+          count: counts[id]!,
         ),
-    ];
-    for (final e in expenses) {
-      final day = e.occurredAt.toLocal().day;
-      final slot = (day - 1) ~/ 7;
-      if (slot < 0 || slot >= weeks.length) continue;
-      final w = weeks[slot];
-      weeks[slot] = StatementWeek(
-        index: w.index,
-        fromDay: w.fromDay,
-        toDay: w.toDay,
-        amountMinor: w.amountMinor + e.amountMinor,
-        businessMinor: w.businessMinor + (e.isBusiness ? e.amountMinor : 0),
-        personalMinor: w.personalMinor + (e.isBusiness ? 0 : e.amountMinor),
-      );
-    }
-    return weeks;
+    ]..sort((a, b) {
+        final byAmount = b.amountMinor.compareTo(a.amountMinor);
+        if (byAmount != 0) return byAmount;
+        return (a.categoryId ?? 1 << 30).compareTo(b.categoryId ?? 1 << 30);
+      });
+    return rows;
   }
 
-  static List<DayKindSpend> dailyKind(
+  /// One well per day in [period]. Slices share the period's category order
+  /// so Monday's groceries sit at the same height as Thursday's.
+  static List<DayCategorySpend> dailyStacks(
     List<Expense> expenses,
-    DateTime month,
+    StatsPeriod period,
   ) {
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final business = List<int>.filled(daysInMonth + 1, 0);
-    final personal = List<int>.filled(daysInMonth + 1, 0);
-    for (final e in expenses) {
-      final day = e.occurredAt.toLocal().day;
-      if (day < 1 || day > daysInMonth) continue;
-      if (e.isBusiness) {
-        business[day] += e.amountMinor;
-      } else {
-        personal[day] += e.amountMinor;
-      }
-    }
-    return [
-      for (var d = 1; d <= daysInMonth; d++)
-        DayKindSpend(
-          day: d,
-          businessMinor: business[d],
-          personalMinor: personal[d],
-        ),
+    final order = [
+      for (final row in categoryTotals(expenses)) row.categoryId,
     ];
-  }
-
-  static int weekendSpend(List<Expense> expenses) {
-    var sum = 0;
-    for (final e in expenses) {
-      final weekday = e.occurredAt.toLocal().weekday;
-      // The ledger is ILS — the weekend that matters is Friday and Saturday.
-      if (weekday == DateTime.friday || weekday == DateTime.saturday) {
-        sum += e.amountMinor;
-      }
-    }
-    return sum;
-  }
-
-  /// Last twelve calendar months, oldest first, blank months kept so a gap
-  /// prints as an empty well rather than a missing column.
-  static List<MonthKindTotals> registerMonths(
-    List<MonthKindTotals> sparse, {
-    DateTime? now,
-    int months = 12,
-  }) {
-    final end = now ?? DateTime.now();
-    final thisMonth = DateTime(end.year, end.month);
-    final byKey = {
-      for (final row in sparse)
-        DateTime(row.month.year, row.month.month): row,
+    final byDay = <DateTime, Map<int?, int>>{
+      for (final day in period.days) day: {},
     };
+    for (final e in expenses) {
+      final day = dayOf(e);
+      final bucket = byDay[day];
+      if (bucket == null) continue;
+      bucket[e.categoryId] = (bucket[e.categoryId] ?? 0) + e.amountMinor;
+    }
     return [
-      for (var i = months - 1; i >= 0; i--)
-        byKey[DateTime(thisMonth.year, thisMonth.month - i)] ??
-            MonthKindTotals(
-              month: DateTime(thisMonth.year, thisMonth.month - i),
-              businessMinor: 0,
-              personalMinor: 0,
-            ),
+      for (final day in period.days)
+        DayCategorySpend(
+          day: day,
+          totalMinor: byDay[day]!.values.fold(0, (sum, n) => sum + n),
+          slices: [
+            for (final id in order)
+              if ((byDay[day]![id] ?? 0) > 0)
+                CategorySlice(
+                  categoryId: id,
+                  amountMinor: byDay[day]![id]!,
+                ),
+          ],
+        ),
     ];
   }
 
-  static MonthPace pace({
-    required DateTime month,
-    required List<Expense> thisMonth,
-    required int lastMonthToDate,
-    DateTime? now,
-  }) {
-    final today = now ?? DateTime.now();
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final isCurrent = today.year == month.year && today.month == month.month;
-    final day = isCurrent ? today.day.clamp(1, daysInMonth) : daysInMonth;
-    final spentToDate = isCurrent
-        ? totalOf([
-            for (final e in thisMonth)
-              if (e.occurredAt.toLocal().day <= day) e,
-          ])
-        : totalOf(thisMonth);
-    final projected = day == 0 ? spentToDate : (spentToDate * daysInMonth) ~/ day;
-    return MonthPace(
-      day: day,
-      daysInMonth: daysInMonth,
-      spentToDate: spentToDate,
-      lastMonthToDate: lastMonthToDate,
-      projected: projected,
-      monthComplete: !isCurrent,
-    );
+  /// Daily take for one category across [period], zeros kept so a quiet day
+  /// is a rest in the line rather than a missing point.
+  static List<int> categorySeries(
+    List<Expense> expenses,
+    StatsPeriod period,
+    int? categoryId,
+  ) {
+    final byDay = {for (final day in period.days) day: 0};
+    for (final e in expenses) {
+      if (e.categoryId != categoryId) continue;
+      final day = dayOf(e);
+      if (!byDay.containsKey(day)) continue;
+      byDay[day] = byDay[day]! + e.amountMinor;
+    }
+    return [for (final day in period.days) byDay[day]!];
+  }
+
+  static List<Expense> onDay(List<Expense> expenses, DateTime day) {
+    final key = Calendar.startOfDay(day);
+    final slips = [
+      for (final e in expenses)
+        if (Calendar.isSameDay(dayOf(e), key)) e,
+    ];
+    slips.sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
+    return slips;
   }
 }
 

@@ -13,6 +13,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Recording money arriving.
 ///
@@ -155,7 +156,7 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
       backgroundColor: palette.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const AppIcon(SolarIcons.CloseCircle),
           tooltip: 'Discard',
           onPressed: () => Navigator.of(context).pop(),
         ),

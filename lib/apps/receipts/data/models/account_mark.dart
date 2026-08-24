@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The printed mark of an account: one icon, one stamp-pad ink.
 ///
@@ -17,7 +18,7 @@ class AccountMark {
 
   final String id;
   final String label;
-  final IconData icon;
+  final SolarIconData icon;
   final CategoryInk ink;
 
   static const String fallbackId = vaultId;
@@ -26,56 +27,56 @@ class AccountMark {
   static const vault = AccountMark(
     id: vaultId,
     label: 'Vault',
-    icon: Icons.account_balance_outlined,
+    icon: SolarIcons.SafeCircle,
     ink: CategoryInk.ledger,
   );
 
   static const wallet = AccountMark(
     id: 'wallet',
     label: 'Wallet',
-    icon: Icons.account_balance_wallet_outlined,
+    icon: SolarIcons.Wallet,
     ink: CategoryInk.mustard,
   );
 
   static const plate = AccountMark(
     id: 'plate',
     label: 'Plate',
-    icon: Icons.credit_card_outlined,
+    icon: SolarIcons.Card,
     ink: CategoryInk.carmine,
   );
 
   static const atm = AccountMark(
     id: 'atm',
     label: 'Till',
-    icon: Icons.local_atm_outlined,
+    icon: SolarIcons.CashOut,
     ink: CategoryInk.teal,
   );
 
   static const leaf = AccountMark(
     id: 'leaf',
     label: 'Leaf',
-    icon: Icons.savings_outlined,
+    icon: SolarIcons.Leaf,
     ink: CategoryInk.pine,
   );
 
   static const coins = AccountMark(
     id: 'coins',
     label: 'Coins',
-    icon: Icons.toll_outlined,
+    icon: SolarIcons.DollarMinimalistic,
     ink: CategoryInk.scorch,
   );
 
   static const safe = AccountMark(
     id: 'safe',
     label: 'Safe',
-    icon: Icons.lock_outline,
+    icon: SolarIcons.LockKeyhole,
     ink: CategoryInk.violet,
   );
 
   static const tin = AccountMark(
     id: 'tin',
     label: 'Tin',
-    icon: Icons.inventory_2_outlined,
+    icon: SolarIcons.BoxMinimalistic,
     ink: CategoryInk.iron,
   );
 

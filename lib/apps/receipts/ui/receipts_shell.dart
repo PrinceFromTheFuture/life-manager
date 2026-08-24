@@ -6,6 +6,7 @@ import 'package:shopping_list/apps/receipts/ui/accounts/accounts_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_setup_drawer.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/change_chip.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/income_sheet.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/views_drawer.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_list_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/manage_lookups_screen.dart';
@@ -16,6 +17,7 @@ import 'package:shopping_list/apps/receipts/ui/stats_screen.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 import 'package:shopping_list/core/design/widgets/count_up_money.dart';
 import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
@@ -103,12 +105,12 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
         actions: [
           IconButton(
             tooltip: 'Export month',
-            icon: const Icon(Icons.ios_share),
+            icon: const AppIcon(SolarIcons.Export),
             onPressed: () => exportSelectedMonth(context, ref),
           ),
           IconButton(
             tooltip: 'Categories',
-            icon: const Icon(Icons.tune),
+            icon: const AppIcon(SolarIcons.Tuning),
             // Straight to categories. Accounts used to live behind this button
             // too; they have a whole section of their own now, and two places
             // to edit the same thing is one place too many.
@@ -129,6 +131,7 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
             onSelected: _select,
           ),
           _Summary(index: index),
+          
           const PerforatedRule(),
           Expanded(
             child: FadeTransition(
@@ -170,8 +173,7 @@ class _Summary extends StatelessWidget {
     return switch (index) {
       ReceiptsShell.accounts => const _AccountsSummary(),
       ReceiptsShell.standing => const _StandingSummary(),
-      // Slips and stats are the two month-scoped sections, and they share the
-      // month, so they share its selector.
+      ReceiptsShell.stats => const StatsSummary(),
       _ => const MonthSelector(),
     };
   }
@@ -198,34 +200,42 @@ class _AccountsSummary extends ConsumerWidget {
         standings?.fold<int>(0, (sum, s) => sum + s.todayDeltaMinor) ?? 0;
 
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
-      child: Column(
-        children: [
-          Text('ON HAND', style: Type.eyebrow.copyWith(color: palette.faded)),
-          const SizedBox(height: Space.xs),
-          if (standings == null)
-            Text(
-              '—',
-              style: Type.totalDisplay.copyWith(
-                color: palette.print,
-                fontSize: 48,
-                letterSpacing: -1.8,
-              ),
-            )
-          else
-            CountUpMoney(
-              amountMinor: onHand,
-              style: Type.totalDisplay.copyWith(
-                color: palette.print,
-                fontSize: 48,
-                letterSpacing: -1.8,
-              ),
+      padding: const EdgeInsets.fromLTRB(
+        Space.lg,
+        Space.xl + 10,
+        Space.lg,
+        Space.xl + 10,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ON HAND', style: Type.eyebrow.copyWith(color: palette.faded, )),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: Space.xs),
+              child: standings == null
+                  ? Text(
+                      '—',
+                      style: Type.totalDisplay.copyWith(
+                        color: palette.print,
+                        fontSize: 48,
+                        fontFamily: Fonts.display,
+                      ),
+                    )
+                  : CountUpMoney(
+                      amountMinor: onHand,
+                      style: Type.totalDisplay.copyWith(
+                        color: palette.print,
+                        fontFamily: Fonts.display,
+                        fontSize: 48,
+                      ),
+                    ),
             ),
-          const SizedBox(height: Space.sm),
-          if (standings != null)
-            ChangeChip(deltaMinor: today, balanceMinor: onHand),
-        ],
+            if (standings != null)
+              ChangeChip(deltaMinor: today, balanceMinor: onHand),
+          ],
+        ),
       ),
     );
   }
@@ -309,18 +319,18 @@ class _ActionBar extends StatelessWidget {
     final (label, icon, onPressed) = switch (index) {
       ReceiptsShell.accounts => (
           'Record income',
-          Icons.south_west,
+          SolarIcons.ArrowLeftDown,
           () => IncomeSheet.open(context),
         ),
       ReceiptsShell.standing => (
           'Add standing order',
-          Icons.event_repeat_outlined,
+          SolarIcons.Repeat,
           () => StandingSheet.open(context),
         ),
       ReceiptsShell.stats => (null, null, null),
       _ => (
           'Add expense',
-          Icons.photo_camera_outlined,
+          SolarIcons.CameraMinimalistic,
           () => ExpenseSheet.open(context),
         ),
     };
@@ -331,7 +341,7 @@ class _ActionBar extends StatelessWidget {
 
     final plate = FilledButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 20),
+      icon: AppIcon(icon!, size: 20),
       label: Text(label),
     );
 
@@ -351,8 +361,7 @@ class _ActionBar extends StatelessWidget {
                   size: const Size(Plate.height, Plate.height),
                   semanticLabel: 'Add account',
                   onPressed: () => openAddAccountDrawer(context),
-                  child: Icon(Icons.account_balance_outlined,
-                      size: 22, color: palette.print),
+                  child: AppIcon(SolarIcons.SafeCircle, size: 22, color: palette.print),
                 ),
                 const SizedBox(width: Space.sm),
                 InkPlate(
@@ -360,8 +369,7 @@ class _ActionBar extends StatelessWidget {
                   size: const Size(Plate.height, Plate.height),
                   semanticLabel: 'Add payment method',
                   onPressed: () => openAddPaymentMethodDrawer(context),
-                  child: Icon(Icons.credit_card_outlined,
-                      size: 22, color: palette.print),
+                  child: AppIcon(SolarIcons.Card, size: 22, color: palette.print),
                 ),
                 const SizedBox(width: Space.sm),
                 Expanded(child: plate),

@@ -9,6 +9,7 @@ import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/db/migration.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Expense tracking, as a mini-app.
 class ReceiptsApp implements MiniApp {
@@ -33,7 +34,7 @@ class ReceiptsApp implements MiniApp {
       );
 
   @override
-  IconData get icon => Icons.receipt_long_outlined;
+  SolarIconData get icon => SolarIcons.BillList;
 
   @override
   ModuleMigrations get migrations => receiptsMigrations;

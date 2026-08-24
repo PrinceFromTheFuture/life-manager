@@ -4,6 +4,7 @@ import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/burn.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One line on the list.
 ///
@@ -166,7 +167,7 @@ class _PrintBox extends StatelessWidget {
         color: checked ? ink : Colors.transparent,
       ),
       child: checked
-          ? Icon(Icons.check, size: size - 8, color: background)
+          ? AppIcon(SolarIcons.CheckCircle, size: size - 8, color: background)
           : null,
     );
   }

@@ -6,6 +6,7 @@ import 'package:shopping_list/app.dart';
 import 'package:shopping_list/apps/groceries/groceries_app.dart';
 import 'package:shopping_list/apps/gym/gym_app.dart';
 import 'package:shopping_list/apps/receipts/receipts_app.dart';
+import 'package:shopping_list/apps/tasks/tasks_app.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/app/registry.dart';
 import 'package:shopping_list/core/db/database.dart';
@@ -20,6 +21,7 @@ const List<MiniApp> installedApps = [
   GroceriesApp(),
   ReceiptsApp(),
   GymApp(),
+  TasksApp(),
 ];
 
 Future<void> main() async {

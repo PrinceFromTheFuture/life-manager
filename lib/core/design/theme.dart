@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 
 /// The type scale.
@@ -147,6 +148,18 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       bodySmall: Type.caption.copyWith(color: p.faded),
       labelLarge: Type.button.copyWith(color: p.print),
       labelSmall: Type.eyebrow.copyWith(color: p.faded),
+    ),
+
+    iconTheme: IconThemeData(color: p.print, size: 24),
+    actionIconTheme: ActionIconThemeData(
+      backButtonIconBuilder: (context) =>
+          const AppIcon(SolarIcons.AltArrowLeft, size: 22),
+      closeButtonIconBuilder: (context) =>
+          const AppIcon(SolarIcons.CloseCircle, size: 22),
+      drawerButtonIconBuilder: (context) =>
+          const AppIcon(SolarIcons.HamburgerMenu, size: 22),
+      endDrawerButtonIconBuilder: (context) =>
+          const AppIcon(SolarIcons.HamburgerMenu, size: 22),
     ),
 
     // Paper has no elevation and no rounded corners.

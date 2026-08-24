@@ -17,6 +17,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Asks before destroying a receipt photo. Used from the list swipe and from
 /// the slip itself, so the wording is learned once.
@@ -374,7 +375,7 @@ class _NoReceiptState extends ConsumerState<NoReceipt> {
         const SizedBox(height: Space.md),
         OutlinedButton.icon(
           onPressed: _busy ? null : () => _attach(ImageSource.camera),
-          icon: const Icon(Icons.photo_camera_outlined, size: 18),
+          icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
           label: const Text('Photograph it'),
         ),
       ],

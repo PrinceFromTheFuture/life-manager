@@ -13,6 +13,7 @@ import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/hub/account_screen.dart';
 import 'package:shopping_list/hub/activity_feed.dart';
 import 'package:shopping_list/hub/launcher.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The shell's home screen.
 ///
@@ -59,7 +60,7 @@ class HubScreen extends ConsumerWidget {
                 radius: 16,
                 backgroundColor: palette.paperShade,
                 foregroundColor: palette.print,
-                child: const Icon(Icons.person, size: 18),
+                child: const AppIcon(SolarIcons.User, size: 18),
               ),
               const SizedBox(width: Space.sm),
               Text(
@@ -73,7 +74,7 @@ class HubScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const AppIcon(SolarIcons.Settings),
             tooltip: 'Settings',
             onPressed: openAccount,
           ),
@@ -115,7 +116,7 @@ class HubScreen extends ConsumerWidget {
         tooltip: 'Add expense',
         backgroundColor: receiptsInk,
         foregroundColor: onReceiptsInk,
-        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+        icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
         label: const Text('Add expense'),
         shape: InkPlateBorder(
           borderRadius: Radii.key,

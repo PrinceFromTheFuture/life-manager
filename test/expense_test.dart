@@ -5,6 +5,7 @@ import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/export/expense_exporter.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/account_mark.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_activity.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
@@ -364,6 +365,52 @@ void main() {
 
       await repo.deleteAccount(cash.id!);
       expect((await repo.byId(saved.id!))!.accountId, isNull);
+    });
+  });
+
+  group('account views', () {
+    test('a view groups accounts and is the one that comes back', () async {
+      final cash =
+          (await repo.accounts()).firstWhere((a) => a.name == 'Cash');
+      final bank = await repo.addAccount('Bank Leumi', kind: 'bank');
+
+      expect(await repo.activeAccountViewId(), isNull);
+      expect(await repo.accountViews(), isEmpty);
+
+      final saved = await repo.saveAccountView(
+        AccountView(
+          name: 'To spend',
+          accountIds: [cash.id!, bank.id!],
+        ),
+      );
+      await repo.setActiveAccountView(saved.id);
+
+      expect(await repo.activeAccountViewId(), saved.id);
+      final views = await repo.accountViews();
+      expect(views, hasLength(1));
+      expect(views.single.name, 'To spend');
+      expect(views.single.accountIds.toSet(), {cash.id, bank.id});
+
+      final standings = await repo.standings();
+      final inView = standingsInView(standings, views.single, forHeadline: true);
+      expect(inView.map((s) => s.account.id).toSet(), {cash.id, bank.id});
+      expect(
+        standingsInView(standings, null, forHeadline: true).length,
+        greaterThan(inView.length),
+      );
+    });
+
+    test('deleting a view falls back to All', () async {
+      final cash =
+          (await repo.accounts()).firstWhere((a) => a.name == 'Cash');
+      final saved = await repo.saveAccountView(
+        AccountView(name: 'Cash only', accountIds: [cash.id!]),
+      );
+      await repo.setActiveAccountView(saved.id);
+      await repo.deleteAccountView(saved.id!);
+
+      expect(await repo.accountViews(), isEmpty);
+      expect(await repo.activeAccountViewId(), isNull);
     });
   });
 

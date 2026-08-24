@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:shopping_list/core/activity/activity_entry.dart';
 import 'package:shopping_list/core/db/migration.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The accent colour a mini-app is "printed" in.
 ///
@@ -33,7 +34,7 @@ class QuickAction {
   /// Says exactly what happens: "Add expense", not "New".
   final String label;
 
-  final IconData icon;
+  final SolarIconData icon;
 
   /// The screen this opens.
   ///
@@ -61,7 +62,7 @@ abstract class MiniApp {
   String get tagline => '';
 
   AppInk get ink;
-  IconData get icon;
+  SolarIconData get icon;
 
   /// This module's schema, owned entirely by it. See [Migration].
   ModuleMigrations get migrations;

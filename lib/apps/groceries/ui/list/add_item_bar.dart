@@ -9,6 +9,7 @@ import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/ink_plate.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The add field, pinned above the keyboard, with its suggestion strip.
 ///
@@ -137,7 +138,7 @@ class _AddButton extends StatelessWidget {
       onPressed: onPressed,
       size: const Size(Plate.height, Plate.height),
       semanticLabel: 'Add item',
-      child: Icon(Icons.add, color: onInk),
+      child: AppIcon(SolarIcons.AddCircle, color: onInk),
     );
   }
 }

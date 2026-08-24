@@ -8,6 +8,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The things that happen without you.
 ///
@@ -130,7 +131,7 @@ class _RuleRow extends ConsumerWidget {
         color: palette.paperShade,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: Space.lg),
-        child: Icon(Icons.delete_outline, color: palette.faded),
+        child: AppIcon(SolarIcons.TrashBinMinimalistic, color: palette.faded),
       ),
       confirmDismiss: (_) => _confirmDelete(context),
       onDismissed: (_) =>

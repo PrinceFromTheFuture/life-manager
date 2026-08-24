@@ -2,342 +2,489 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'package:shopping_list/apps/receipts/data/models/account.dart';
-import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
+import 'package:shopping_list/apps/receipts/data/finance/calendar.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
-import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
+import 'package:shopping_list/apps/receipts/ui/category_stats_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
 import 'package:shopping_list/apps/receipts/ui/stats_charts.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/count_up_money.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
-/// Where the money went this month.
+/// Where the money went this week — or this month.
 ///
-/// Built without a chart package: ink wells, a till tape of shops, and a
-/// day-by-day column. Kind (to claim vs personal) still shares one carbon.
-/// Categories each carry their own stamp-pad ink, so the breakdown can be
-/// read at a glance.
-///
-/// A section of the shell rather than a pushed screen: statistics answer a
-/// question about the same month the slips list is showing, so making you
-/// navigate away from it was always slightly wrong.
-class StatsSection extends ConsumerWidget {
+/// Built like gym progress: a week of wells, then a breakdown by the thing
+/// that actually organises the work. Here that thing is the category stamp,
+/// not business vs personal. The span lives in [statsPeriodProvider], so
+/// paging a week does not drag the slips list off its month.
+class StatsSection extends ConsumerStatefulWidget {
   const StatsSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
-    final month = ref.watch(selectedMonthProvider);
-    final expensesAsync = ref.watch(monthExpensesProvider);
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final accountsAsync = ref.watch(accountsProvider);
-
-    return expensesAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('$e', style: Type.caption.copyWith(color: palette.faded)),
-      ),
-      data: (expenses) => categoriesAsync.maybeWhen(
-        data: (categories) => accountsAsync.maybeWhen(
-          data: (accounts) => _StatsBody(
-            month: month,
-            expenses: expenses,
-            categories: categories,
-            accounts: accounts,
-          ),
-          orElse: () => const Center(child: CircularProgressIndicator()),
-        ),
-        orElse: () => const Center(child: CircularProgressIndicator()),
-      ),
-    );
-  }
+  ConsumerState<StatsSection> createState() => _StatsSectionState();
 }
 
-class _StatsBody extends ConsumerWidget {
-  const _StatsBody({
-    required this.month,
-    required this.expenses,
-    required this.categories,
-    required this.accounts,
-  });
-
-  final DateTime month;
-  final List<Expense> expenses;
-  final List<ExpenseCategory> categories;
-  final List<Account> accounts;
+class _StatsSectionState extends ConsumerState<StatsSection> {
+  DateTime? _selectedDay;
+  int? _donutId;
+  var _donutPinned = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final palette = context.thermal;
-    final lens = ref.watch(receiptsLensProvider);
-    final previousTotal = ref.watch(previousMonthTotalProvider);
-    final lastMonthToDate = ref.watch(lastMonthToDateProvider);
+    final period = ref.watch(statsPeriodProvider);
+    final expensesAsync = ref.watch(statsExpensesProvider);
+    final categoriesAsync = ref.watch(categoriesProvider);
 
-    if (expenses.isEmpty) {
-      return const _EmptyStats();
+    ref.listen(statsPeriodProvider, (prev, next) {
+      if (prev == next) return;
+      setState(() {
+        _selectedDay = next.contains(DateTime.now())
+            ? Calendar.startOfDay(DateTime.now())
+            : null;
+        _donutPinned = false;
+      });
+    });
+
+    final expenses = expensesAsync.valueOrNull;
+    final categories = categoriesAsync.valueOrNull;
+    if (expenses == null || categories == null) {
+      if (expensesAsync.hasError) {
+        return Center(
+          child: Text(
+            '${expensesAsync.error}',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+        );
+      }
+      if (categoriesAsync.hasError) {
+        return Center(
+          child: Text(
+            '${categoriesAsync.error}',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+        );
+      }
+      return const Center(child: CircularProgressIndicator());
     }
 
-    final lenses = [
-      ReceiptsLens.all,
-      ReceiptsLens.toClaim,
-      ReceiptsLens.personal,
-      ReceiptsLens.unfiled,
-      if (ReceiptsView.largeCutoff(expenses) != null) ReceiptsLens.large,
-    ];
-    final shown = ReceiptsView.apply(
-      expenses,
-      lens: lens,
-      sort: ReceiptsSort.newest,
-    );
-    final fullTotal = ReceiptsView.totalOf(expenses);
-    final total = ReceiptsView.totalOf(shown);
-    final categoryNames = {for (final c in categories) c.id: c.name};
-    final categoryInks = {for (final c in categories) c.id: c.stamp};
-    final accountNames = {for (final a in accounts) a.id: a.label};
-    final merchants = ReceiptsView.merchantTape(shown);
-    final weeks = ReceiptsView.statementWeeks(shown, month);
-    final days = ReceiptsView.dailyKind(shown, month);
-    final weekend = ReceiptsView.weekendSpend(shown);
+    final brightness = Theme.of(context).brightness;
+    final inks = <int?, Color>{
+      null: palette.faded,
+      for (final c in categories) c.id: c.stamp.of(brightness),
+    };
+    final names = <int?, String>{
+      null: 'Unfiled',
+      for (final c in categories) c.id: c.name,
+    };
+    final stacks = ReceiptsView.dailyStacks(expenses, period);
+    final totals = ReceiptsView.categoryTotals(expenses);
+    final selectedDay = _selectedDay != null && period.contains(_selectedDay!)
+        ? _selectedDay
+        : null;
+    final daySlips = selectedDay == null
+        ? const <Expense>[]
+        : ReceiptsView.onDay(expenses, selectedDay);
+    final donutId = _donutPinned
+        ? _donutId
+        : (totals.isEmpty ? null : totals.first.categoryId);
 
-    return ListView(
-      padding:
-          const EdgeInsets.fromLTRB(Space.lg, Space.lg, Space.lg, Space.xxl),
-      children: [
-        LedgerPlateRow<ReceiptsLens>(
-          values: lenses,
-          selected: lens,
-          labelOf: (l) => l.label,
-          onSelected: (l) =>
-              ref.read(receiptsLensProvider.notifier).state = l,
+    return GestureDetector(
+      onHorizontalDragEnd: (details) => _swipe(details, period),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          Space.lg,
+          Space.lg,
+          Space.lg,
+          Space.xxl,
         ),
-        const SizedBox(height: Space.lg),
-        Text(
-          DateFormat('MMMM yyyy').format(month).toUpperCase(),
-          style: Type.eyebrow.copyWith(color: palette.faded),
-        ),
-        const SizedBox(height: Space.sm),
-        Text(
-          Money.format(total),
-          style: Type.totalDisplay.copyWith(color: palette.print),
-        ),
-        if (lens != ReceiptsLens.all && total != fullTotal)
-          Padding(
-            padding: const EdgeInsets.only(top: Space.xs),
-            child: Text(
-              'of ${Money.format(fullTotal)} this month',
-              style: Type.caption.copyWith(color: palette.faded),
-            ),
-          ),
-        previousTotal.maybeWhen(
-          data: (previous) {
-            final delta = _monthDelta(total, previous, lens);
-            if (delta == null) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(top: Space.xs),
-              child: Text(
-                delta,
-                style: Type.caption.copyWith(color: palette.faded),
-              ),
-            );
-          },
-          orElse: () => const SizedBox.shrink(),
-        ),
-        lastMonthToDate.maybeWhen(
-          data: (prior) {
-            final pace = ReceiptsView.pace(
-              month: month,
-              thisMonth: shown,
-              lastMonthToDate: prior,
-            );
-            final caption = _paceCaption(pace, lens);
-            if (caption == null) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(top: Space.xs),
-              child: Text(
-                caption,
-                style: Type.caption.copyWith(color: palette.carbon),
-              ),
-            );
-          },
-          orElse: () => const SizedBox.shrink(),
-        ),
-        if (shown.isEmpty) ...[
-          const SizedBox(height: Space.xl),
-          const PerforatedRule(),
-          const SizedBox(height: Space.xl),
+        children: [
           Text(
-            lens.empty,
-            style: Type.body.copyWith(color: palette.faded),
-          ),
-        ] else ...[
-          const SizedBox(height: Space.lg),
-          const PerforatedRule(),
-          const SizedBox(height: Space.xl),
-          Text('BY KIND', style: Type.eyebrow.copyWith(color: palette.faded)),
-          const SizedBox(height: Space.lg),
-          _KindBreakdown(expenses: shown, total: total),
-          const SizedBox(height: Space.xl),
-          const PerforatedRule(),
-          const SizedBox(height: Space.xl),
-          Text(
-            'THE REGISTER',
+            period.grain == StatsGrain.week ? 'BY DAY' : 'BY DAY',
             style: Type.eyebrow.copyWith(color: palette.faded),
           ),
           const SizedBox(height: Space.sm),
           Text(
-            'Twelve months, claimed ink on top.',
+            selectedDay == null
+                ? (period.grain == StatsGrain.week
+                    ? 'Tap a day — swipe for another week.'
+                    : 'Tap a day — swipe for another month.')
+                : DateFormat('EEEE d MMMM').format(selectedDay),
             style: Type.caption.copyWith(color: palette.faded),
           ),
+          const SizedBox(height: Space.md),
+          DaySpendChart(
+            days: stacks,
+            inks: inks,
+            grain: period.grain,
+            selected: selectedDay,
+            onSelect: (day, {required toggle}) {
+              setState(() {
+                if (toggle &&
+                    selectedDay != null &&
+                    Calendar.isSameDay(selectedDay, day)) {
+                  _selectedDay = null;
+                } else {
+                  _selectedDay = day;
+                }
+              });
+            },
+          ),
+          AnimatedSize(
+            duration: Motion.settle,
+            curve: Motion.heat,
+            alignment: Alignment.topCenter,
+            child: selectedDay == null
+                ? const SizedBox(width: double.infinity)
+                : _DaySlips(
+                    slips: daySlips,
+                    inks: inks,
+                  ),
+          ),
           const SizedBox(height: Space.lg),
-          const _MonthRegisterSection(),
-          const SizedBox(height: Space.xl),
-          const PerforatedRule(),
-          const SizedBox(height: Space.xl),
-          Text(
-            'STATEMENT WEEKS',
-            style: Type.eyebrow.copyWith(color: palette.faded),
-          ),
-          const SizedBox(height: Space.sm),
-          Text(
-            'Days 1–7, 8–14, 15–21, 22–28, then the tail.',
-            style: Type.caption.copyWith(color: palette.faded),
-          ),
-          const SizedBox(height: Space.lg),
-          WeekWells(weeks: weeks),
-          const SizedBox(height: Space.xl),
-          const PerforatedRule(),
-          const SizedBox(height: Space.xl),
-          Text(
-            'THE TAPE',
-            style: Type.eyebrow.copyWith(color: palette.faded),
-          ),
-          const SizedBox(height: Space.sm),
-          Text(
-            'Who took the month.',
-            style: Type.caption.copyWith(color: palette.faded),
-          ),
-          const SizedBox(height: Space.lg),
-          _MerchantTape(merchants: merchants, total: total),
-          const SizedBox(height: Space.xl),
           const PerforatedRule(),
           const SizedBox(height: Space.xl),
           Text(
             'BY CATEGORY',
             style: Type.eyebrow.copyWith(color: palette.faded),
           ),
-          const SizedBox(height: Space.lg),
-          _CategoryBreakdown(
-            expenses: shown,
-            categoryNames: categoryNames,
-            categoryInks: categoryInks,
-          ),
-          if (_hasPaidWith(shown)) ...[
-            const SizedBox(height: Space.xl),
-            const PerforatedRule(),
-            const SizedBox(height: Space.xl),
-            Text(
-              'PAID WITH',
-              style: Type.eyebrow.copyWith(color: palette.faded),
-            ),
-            const SizedBox(height: Space.lg),
-            _PaidWithBreakdown(
-              expenses: shown,
-              accountNames: accountNames,
-            ),
-          ],
-          const _CommittedCycles(),
-          const SizedBox(height: Space.xl),
-          const PerforatedRule(),
-          const SizedBox(height: Space.xl),
-          Text('BY DAY', style: Type.eyebrow.copyWith(color: palette.faded)),
           const SizedBox(height: Space.sm),
           Text(
-            weekend > 0 && total > 0
-                ? 'Friday and Saturday took ${((weekend / total) * 100).round()}% · personal underneath, business on top'
-                : 'Personal underneath, business on top.',
+            totals.isEmpty
+                ? (period.grain == StatsGrain.week
+                    ? 'Nothing stamped this week.'
+                    : 'Nothing stamped this month.')
+                : 'The ring is the pads. Tap a pad, tap the hole to open it.',
             style: Type.caption.copyWith(color: palette.faded),
           ),
-          const SizedBox(height: Space.lg),
-          StackedDailySpend(
-            month: month,
-            days: days,
-            expenses: shown,
-            onOpenExpense: (expense) {
-              if (expense.id == null) return;
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      ExpenseDetailScreen(expenseId: expense.id!),
-                ),
-              );
-            },
-          ),
-        ],
-      ],
-    );
-  }
-
-  static bool _hasPaidWith(List<Expense> expenses) =>
-      expenses.any((e) => e.paymentMethodId != null || e.accountId != null);
-
-  static String? _monthDelta(int current, int previous, ReceiptsLens lens) {
-    if (previous == 0 || lens != ReceiptsLens.all) return null;
-    final change = ((current - previous) / previous * 100).round();
-    if (change == 0) return 'Same as last month';
-    final direction = change > 0 ? 'up' : 'down';
-    return '${change.abs()}% $direction on last month';
-  }
-
-  static String? _paceCaption(MonthPace pace, ReceiptsLens lens) {
-    if (pace.monthComplete) return null;
-    if (lens != ReceiptsLens.all) return null;
-    final parts = <String>[
-      'Day ${pace.day} of ${pace.daysInMonth}',
-    ];
-    if (pace.lastMonthToDate > 0) {
-      final d = pace.deltaToDate;
-      if (d == 0) {
-        parts.add('even with last month by now');
-      } else if (d > 0) {
-        parts.add('${Money.format(d)} ahead of last month by now');
-      } else {
-        parts.add('${Money.format(-d)} behind last month by now');
-      }
-    }
-    parts.add('on course for ${Money.format(pace.projected)}');
-    return parts.join(' · ');
-  }
-}
-
-class _EmptyStats extends StatelessWidget {
-  const _EmptyStats();
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          if (totals.isNotEmpty) ...[
+            const SizedBox(height: Space.md),
+            CategoryDonut(
+              slices: [
+                for (final row in totals)
+                  DonutSlice(
+                    categoryId: row.categoryId,
+                    name: names[row.categoryId] ?? 'Unfiled',
+                    amountMinor: row.amountMinor,
+                    ink: inks[row.categoryId] ?? palette.faded,
+                  ),
+              ],
+              totalMinor: ReceiptsView.totalOf(expenses),
+              selectedId: donutId,
+              onSelect: (id) => setState(() {
+                _donutId = id;
+                _donutPinned = true;
+              }),
+              onOpen: totals.isEmpty
+                  ? null
+                  : () => _openCategory(
+                        context,
+                        categoryId: donutId,
+                        name: names[donutId] ?? 'Unfiled',
+                        ink: inks[donutId] ?? palette.faded,
+                        period: period,
+                        expenses: expenses,
+                      ),
+            ),
+            const SizedBox(height: Space.xl),
             const PerforatedRule(),
             const SizedBox(height: Space.lg),
+            for (var i = 0; i < totals.length; i++) ...[
+              _CategoryRow(
+                name: names[totals[i].categoryId] ?? 'Unfiled',
+                spend: totals[i],
+                ink: inks[totals[i].categoryId] ?? palette.faded,
+                values: ReceiptsView.categorySeries(
+                  expenses,
+                  period,
+                  totals[i].categoryId,
+                ),
+                onTap: () => _openCategory(
+                  context,
+                  categoryId: totals[i].categoryId,
+                  name: names[totals[i].categoryId] ?? 'Unfiled',
+                  ink: inks[totals[i].categoryId] ?? palette.faded,
+                  period: period,
+                  expenses: expenses,
+                ),
+              ),
+              if (i != totals.length - 1) ...[
+                const SizedBox(height: Space.md),
+                const PerforatedRule(),
+                const SizedBox(height: Space.md),
+              ],
+            ],
+          ] else ...[
+            const SizedBox(height: Space.lg),
             Text(
-              'Nothing to show yet.',
+              period.grain == StatsGrain.week
+                  ? 'Nothing this week.'
+                  : 'Nothing this month.',
               style: Type.display.copyWith(color: palette.print, fontSize: 26),
             ),
             const SizedBox(height: Space.md),
             Text(
-              'Statistics fill in once you have logged an expense this month.',
+              period.grain == StatsGrain.week
+                  ? 'Swipe for another week, or log a slip.'
+                  : 'Swipe for another month, or log a slip.',
               style: Type.body.copyWith(color: palette.faded),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _swipe(DragEndDetails details, StatsPeriod period) {
+    final v = details.primaryVelocity ?? 0;
+    if (v > 280) {
+      ref.read(statsPeriodProvider.notifier).state = period.previous;
+    } else if (v < -280) {
+      if (period.canAdvance()) {
+        ref.read(statsPeriodProvider.notifier).state = period.next;
+      }
+    }
+  }
+
+  void _openCategory(
+    BuildContext context, {
+    required int? categoryId,
+    required String name,
+    required Color ink,
+    required StatsPeriod period,
+    required List<Expense> expenses,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CategoryStatsScreen(
+          categoryId: categoryId,
+          name: name,
+          ink: ink,
+          period: period,
+          expenses: expenses,
+        ),
+      ),
+    );
+  }
+}
+
+/// Headline for the statistics tab: grain, span, and the total that belongs
+/// in the same slot as the slips month selector.
+class StatsSummary extends ConsumerWidget {
+  const StatsSummary({super.key});
+
+  Future<void> _pickDate(
+    BuildContext context,
+    WidgetRef ref,
+    StatsPeriod period,
+  ) async {
+    final now = DateTime.now();
+    final initial = period.contains(now) ? now : period.start;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDatePickerMode: period.grain == StatsGrain.month
+          ? DatePickerMode.year
+          : DatePickerMode.day,
+      helpText: period.grain == StatsGrain.month ? 'Which month?' : 'Which week?',
+      useRootNavigator: false,
+    );
+    if (picked == null) return;
+    ref.read(statsPeriodProvider.notifier).state = period.at(picked);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final period = ref.watch(statsPeriodProvider);
+    final total = ref.watch(statsTotalProvider);
+    final canAdvance = period.canAdvance();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              LedgerPlate(
+                label: 'Week',
+                selected: period.grain == StatsGrain.week,
+                onTap: () => ref.read(statsPeriodProvider.notifier).state =
+                    period.withGrain(StatsGrain.week),
+              ),
+              const SizedBox(width: Space.sm),
+              LedgerPlate(
+                label: 'Month',
+                selected: period.grain == StatsGrain.month,
+                onTap: () => ref.read(statsPeriodProvider.notifier).state =
+                    period.withGrain(StatsGrain.month),
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.sm),
+          Row(
+            children: [
+              IconButton(
+                icon: const AppIcon(SolarIcons.AltArrowLeft),
+                tooltip: period.grain == StatsGrain.week
+                    ? 'Previous week'
+                    : 'Previous month',
+                onPressed: () => ref.read(statsPeriodProvider.notifier).state =
+                    period.previous,
+              ),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _pickDate(context, ref, period),
+                  child: Column(
+                    children: [
+                      Text(
+                        _eyebrow(period),
+                        style: Type.eyebrow.copyWith(color: palette.faded),
+                      ),
+                      const SizedBox(height: Space.xs),
+                      total.maybeWhen(
+                        data: (amount) => CountUpMoney(
+                          amountMinor: amount,
+                          style: Type.totalDisplay.copyWith(
+                            color: palette.print,
+                            fontSize: 32,
+                          ),
+                        ),
+                        orElse: () => Text(
+                          '—',
+                          style: Type.totalDisplay.copyWith(
+                            color: palette.print,
+                            fontSize: 32,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const AppIcon(SolarIcons.AltArrowRight),
+                tooltip: period.grain == StatsGrain.week
+                    ? 'Next week'
+                    : 'Next month',
+                onPressed: canAdvance
+                    ? () => ref.read(statsPeriodProvider.notifier).state =
+                        period.next
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _eyebrow(StatsPeriod period) {
+    if (period.grain == StatsGrain.week) {
+      if (period.isCurrent()) return 'THIS WEEK';
+      return 'WEEK OF ${DateFormat('d MMM').format(period.start).toUpperCase()}';
+    }
+    return DateFormat('MMMM yyyy').format(period.start).toUpperCase();
+  }
+}
+
+class _DaySlips extends StatelessWidget {
+  const _DaySlips({required this.slips, required this.inks});
+
+  final List<Expense> slips;
+  final Map<int?, Color> inks;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: Space.md),
+        const PerforatedRule(),
+        if (slips.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: Space.md),
+            child: Text(
+              'Nothing spent.',
+              style: Type.caption.copyWith(color: palette.faded),
+            ),
+          )
+        else
+          for (final slip in slips)
+            _SlipTile(
+              expense: slip,
+              ink: inks[slip.categoryId],
+              caption: DateFormat('HH:mm').format(slip.occurredAt.toLocal()),
+            ),
+      ],
+    );
+  }
+}
+
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({
+    required this.name,
+    required this.spend,
+    required this.ink,
+    required this.values,
+    required this.onTap,
+  });
+
+  final String name;
+  final CategorySpend spend;
+  final Color ink;
+  final List<int> values;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    final slips = spend.count == 1 ? '1 slip' : '${spend.count} slips';
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.xs),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(width: 3, height: 16, color: ink),
+                const SizedBox(width: Space.sm),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: Type.item.copyWith(color: palette.print),
+                  ),
+                ),
+                Text(
+                  slips,
+                  style: Type.mono.copyWith(color: palette.faded, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.only(left: 11),
+              child: Text(
+                Money.format(spend.amountMinor),
+                style: Type.caption.copyWith(color: palette.faded),
+              ),
+            ),
+            if (values.any((v) => v > 0)) ...[
+              const SizedBox(height: Space.sm),
+              SpendPlot(values: values, ink: ink, height: 64),
+            ],
           ],
         ),
       ),
@@ -345,258 +492,62 @@ class _EmptyStats extends StatelessWidget {
   }
 }
 
-class _MonthRegisterSection extends ConsumerWidget {
-  const _MonthRegisterSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
-    final month = ref.watch(selectedMonthProvider);
-    final history = ref.watch(kindTotalsByMonthProvider);
-
-    return history.maybeWhen(
-      data: (months) {
-        final filled = ReceiptsView.registerMonths(months);
-        if (filled.every((m) => m.totalMinor == 0)) {
-          return Text(
-            'No months to compare yet.',
-            style: Type.caption.copyWith(color: palette.faded),
-          );
-        }
-        return MonthRegister(
-          months: filled,
-          selected: month,
-          onSelect: (picked) =>
-              ref.read(selectedMonthProvider.notifier).state = picked,
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _KindBreakdown extends StatelessWidget {
-  const _KindBreakdown({required this.expenses, required this.total});
-
-  final List<Expense> expenses;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-    var business = 0;
-    var personal = 0;
-    for (final e in expenses) {
-      if (e.isBusiness) {
-        business += e.amountMinor;
-      } else {
-        personal += e.amountMinor;
-      }
-    }
-    final max = business > personal ? business : personal;
-    if (max == 0) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkRun(
-          label: 'To claim',
-          amountMinor: business,
-          fraction: business / max,
-          ink: palette.carbon,
-        ),
-        const SizedBox(height: Space.md),
-        InkRun(
-          label: 'Personal',
-          amountMinor: personal,
-          fraction: personal / max,
-          ink: palette.carbon.withValues(alpha: 0.45),
-        ),
-        if (total > 0 && business > 0) ...[
-          const SizedBox(height: Space.sm),
-          Text(
-            '${((business / total) * 100).round()}% of this view is to claim',
-            style: Type.caption.copyWith(color: palette.faded),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _MerchantTape extends StatelessWidget {
-  const _MerchantTape({required this.merchants, required this.total});
-
-  final List<MerchantTotal> merchants;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    if (merchants.isEmpty) return const SizedBox.shrink();
-    final top = merchants.take(8).toList();
-    final max = top.first.amountMinor;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final row in top) ...[
-          InkRun(
-            label: row.name,
-            amountMinor: row.amountMinor,
-            fraction: row.amountMinor / max,
-            detail: row.count == 1
-                ? (total > 0
-                    ? '${((row.amountMinor / total) * 100).round()}% of this view'
-                    : null)
-                : '${row.count} slips'
-                    '${total > 0 ? ' · ${((row.amountMinor / total) * 100).round()}%' : ''}',
-          ),
-          const SizedBox(height: Space.md),
-        ],
-      ],
-    );
-  }
-}
-
-class _CategoryBreakdown extends StatelessWidget {
-  const _CategoryBreakdown({
-    required this.expenses,
-    required this.categoryNames,
-    required this.categoryInks,
+class _SlipTile extends StatelessWidget {
+  const _SlipTile({
+    required this.expense,
+    required this.caption,
+    this.ink,
   });
 
-  final List<Expense> expenses;
-  final Map<int?, String> categoryNames;
-  final Map<int?, CategoryInk> categoryInks;
+  final Expense expense;
+  final String caption;
+  final Color? ink;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final brightness = Theme.of(context).brightness;
-    final totals = <int?, int>{};
-    for (final e in expenses) {
-      totals[e.categoryId] = (totals[e.categoryId] ?? 0) + e.amountMinor;
-    }
-    final sorted = totals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    if (sorted.isEmpty) return const SizedBox.shrink();
-    final max = sorted.first.value;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final entry in sorted) ...[
-          InkRun(
-            label: categoryNames[entry.key] ?? 'Unfiled',
-            amountMinor: entry.value,
-            fraction: entry.value / max,
-            ink: categoryInks[entry.key]?.of(brightness) ?? palette.faded,
-          ),
-          const SizedBox(height: Space.md),
-        ],
-      ],
-    );
-  }
-}
-
-/// Split by payment method, falling back to the account for slips logged
-/// before methods existed.
-class _PaidWithBreakdown extends ConsumerWidget {
-  const _PaidWithBreakdown({
-    required this.expenses,
-    required this.accountNames,
-  });
-
-  final List<Expense> expenses;
-  final Map<int?, String> accountNames;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final methods = ref.watch(paymentMethodsProvider).valueOrNull ?? const [];
-    final methodNames = {for (final m in methods) m.id: m.label};
-
-    final totals = <String, int>{};
-    for (final e in expenses) {
-      final name = methodNames[e.paymentMethodId] ??
-          accountNames[e.accountId] ??
-          'Unassigned';
-      totals[name] = (totals[name] ?? 0) + e.amountMinor;
-    }
-
-    final sorted = totals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    if (sorted.isEmpty) return const SizedBox.shrink();
-    final max = sorted.first.value;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final entry in sorted) ...[
-          InkRun(
-            label: entry.key,
-            amountMinor: entry.value,
-            fraction: entry.value / max,
-          ),
-          const SizedBox(height: Space.md),
-        ],
-      ],
-    );
-  }
-}
-
-/// What the cards are carrying right now.
-///
-/// Deliberately not month-scoped like everything above it: a statement cycle
-/// straddles two calendar months, and pretending otherwise would show you a
-/// number no card issuer will ever bill you for. Hidden entirely when nothing
-/// is on credit, which for most people is most of the time.
-class _CommittedCycles extends ConsumerWidget {
-  const _CommittedCycles();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
-    final standings = ref.watch(accountStandingsProvider).valueOrNull;
-    if (standings == null) return const SizedBox.shrink();
-
-    final rows = <MapEntry<String, int>>[];
-    for (final standing in standings) {
-      for (final method in standing.methods) {
-        final committed = standing.committed[method.id] ?? 0;
-        if (committed > 0) rows.add(MapEntry(method.label, committed));
-      }
-    }
-    if (rows.isEmpty) return const SizedBox.shrink();
-
-    rows.sort((a, b) => b.value.compareTo(a.value));
-    final max = rows.first.value;
-    final total = rows.fold(0, (sum, row) => sum + row.value);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: Space.xl),
-        const PerforatedRule(),
-        const SizedBox(height: Space.xl),
-        Text(
-          'ON THE CARDS',
-          style: Type.eyebrow.copyWith(color: palette.faded),
+    return InkWell(
+      onTap: expense.id == null
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ExpenseDetailScreen(expenseId: expense.id!),
+                ),
+              ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.md),
+        child: Row(
+          children: [
+            if (ink != null) ...[
+              Container(width: 3, height: 26, color: ink),
+              const SizedBox(width: Space.md),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    expense.title,
+                    style: Type.item.copyWith(color: palette.print),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    caption,
+                    style: Type.caption.copyWith(color: palette.faded),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: Space.md),
+            Text(
+              expense.amountLabel,
+              style: Type.monoBold.copyWith(color: palette.print),
+            ),
+          ],
         ),
-        const SizedBox(height: Space.sm),
-        Text(
-          '${Money.format(total)} charged and not yet collected.',
-          style: Type.caption.copyWith(color: palette.faded),
-        ),
-        const SizedBox(height: Space.lg),
-        for (final row in rows) ...[
-          InkRun(
-            label: row.key,
-            amountMinor: row.value,
-            fraction: row.value / max,
-          ),
-          const SizedBox(height: Space.md),
-        ],
-      ],
+      ),
     );
   }
 }

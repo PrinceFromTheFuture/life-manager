@@ -12,6 +12,7 @@ import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/providers.dart';
 import 'package:shopping_list/core/settings/api_keys.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Account and settings.
 class AccountScreen extends ConsumerWidget {
@@ -184,7 +185,7 @@ class _KeyRow extends ConsumerWidget {
                 ),
                 if (isSet)
                   IconButton(
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: const AppIcon(SolarIcons.CloseCircle, size: 18),
                     tooltip: 'Remove key',
                     onPressed: () async {
                       await ref.read(apiKeyStoreProvider).clear(kind);
@@ -463,8 +464,8 @@ class _DataRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
+            AppIcon(
+              SolarIcons.AltArrowRight,
               size: 18,
               color: enabled ? palette.faded : palette.perforation,
             ),

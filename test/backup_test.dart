@@ -12,6 +12,8 @@ import 'package:shopping_list/apps/receipts/data/models/income.dart';
 import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
 import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
+import 'package:shopping_list/apps/tasks/data/tasks_migrations.dart';
+import 'package:shopping_list/apps/tasks/data/tasks_repository.dart';
 import 'package:shopping_list/core/backup/app_backup.dart';
 import 'package:shopping_list/core/db/database.dart';
 import 'package:shopping_list/core/db/migration.dart';
@@ -34,11 +36,15 @@ void main() {
   });
 
   /// The modules this worktree ships — what `main()` opens after restore.
-  /// Last production commit (`8cdc896`) already had the same three apps.
   Future<AppDatabase> openCurrent({required String path}) => AppDatabase.open(
         factory: databaseFactoryFfi,
         path: path,
-        modules: [groceriesMigrations, receiptsMigrations, gymMigrations],
+        modules: [
+          groceriesMigrations,
+          receiptsMigrations,
+          gymMigrations,
+          tasksMigrations,
+        ],
       );
 
   /// A backup taken before gym shipped. Restore still has to keep the old
@@ -82,6 +88,7 @@ void main() {
         receiptsMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['groceries'], 1);
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
+    expect(zip.manifest.schemaVersions['tasks'], tasksMigrations.latestVersion);
     expect(zip.manifest.keyCount, 0);
 
     final inspected = AppBackup.inspect(zip.bytes);
@@ -255,6 +262,7 @@ void main() {
     expect(versions['groceries'], groceriesMigrations.latestVersion);
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
+    expect(versions['tasks'], tasksMigrations.latestVersion);
 
     final gym = GymRepository(restored);
     final rack = await gym.rack();
@@ -269,7 +277,7 @@ void main() {
     expect(await gym.volumeOnDay(DateTime(2026, 8, 13)), 80000 * 5);
   });
 
-  test('a current backup round-trips groceries, receipts and gym', () async {
+  test('a current backup round-trips groceries, receipts, gym and tasks', () async {
     final livePath = p.join(dir.path, 'live.db');
     final docs = Directory(p.join(dir.path, 'docs'));
     final database = await openCurrent(path: livePath);
@@ -304,11 +312,18 @@ void main() {
       day: DateTime(2026, 8, 18),
     );
 
+    final tasks = TasksRepository(database);
+    final project = await tasks.addProject(name: 'This app');
+    await tasks.addTask(projectId: project.id!, title: 'Ship a build');
+
     final zip = await AppBackup(database, images).build();
     expect(zip.manifest.tables['gym_sets'], 1);
     expect(zip.manifest.tables['trip_items'], 1);
+    expect(zip.manifest.tables['tasks_projects'], 1);
+    expect(zip.manifest.tables['tasks_items'], 1);
     expect(zip.manifest.tables['activity'], greaterThanOrEqualTo(1));
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
+    expect(zip.manifest.schemaVersions['tasks'], tasksMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['receipts'],
         receiptsMigrations.latestVersion);
 
@@ -340,6 +355,12 @@ void main() {
       await GymRepository(restored).volumeOnDay(DateTime(2026, 8, 18)),
       60000 * 8,
     );
+    final living = await TasksRepository(restored).livingProjects();
+    expect(living.single.name, 'This app');
+    expect(
+      (await TasksRepository(restored).openTasks(living.single.id!)).single.title,
+      'Ship a build',
+    );
     final cafe = (await ExpenseRepository(restored, restoredImages).recent())
         .single;
     expect(await restoredImages.exists(cafe.receiptPath), isTrue);
@@ -348,6 +369,7 @@ void main() {
     expect(versions['groceries'], groceriesMigrations.latestVersion);
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
+    expect(versions['tasks'], tasksMigrations.latestVersion);
     expect(versions['core'], 1);
   });
 
@@ -589,6 +611,7 @@ void main() {
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['groceries'], 1);
     expect(versions['gym'], 1);
+    expect(versions['tasks'], tasksMigrations.latestVersion);
 
     final slips = await expenses.recent();
     expect(slips, hasLength(12));
@@ -653,6 +676,75 @@ void main() {
     expect((await groceries.loadHistory()), hasLength(3));
     expect((await groceries.loadActiveList()).items, isEmpty);
     expect(await gym.volumeOnDay(DateTime(2026, 8, 17)), greaterThan(0));
+  });
+
+  test('the latest on-phone copy restores into this build', () async {
+    // Pulled from the device just before this version went on it. Kept out
+    // of git — the zip holds scanning keys and live receipts.
+    final zipFile = File(p.join('test', 'fixtures', 'local', 'latest.zip'));
+    if (!zipFile.existsSync()) {
+      markTestSkipped('no local/latest.zip — pull the on-phone copy first');
+      return;
+    }
+
+    final livePath = p.join(dir.path, 'shopping_list.db');
+    final docs = Directory(p.join(dir.path, 'docs'))..createSync();
+    final bytes = await zipFile.readAsBytes();
+
+    final inspected = AppBackup.inspect(bytes);
+    expect(inspected.format, BackupManifest.currentFormat);
+    expect(inspected.schemaVersions['receipts'],
+        receiptsMigrations.latestVersion);
+    expect(inspected.tables['expenses'], 20);
+    expect(inspected.tables['accounts'], 4);
+    expect(inspected.tables['incomes'], 3);
+    expect(inspected.tables['gym_sets'], 60);
+    expect(inspected.tables['account_views'], 1);
+    expect(inspected.imageCount, 20);
+    expect(inspected.keyCount, 2);
+
+    Map<String, String>? restoredKeys;
+    await AppBackup.restore(
+      zipBytes: bytes,
+      liveDbPath: livePath,
+      documentsRoot: docs,
+      restoreKeys: (keys) async => restoredKeys = keys,
+    );
+    expect(
+      restoredKeys?.keys,
+      containsAll(['google_vision_api_key', 'openrouter_api_key']),
+    );
+    expect(restoredKeys?.length, 2);
+
+    final restored = await openCurrent(path: livePath);
+    addTearDown(restored.close);
+    final images = ImageStore(root: docs);
+    final expenses = ExpenseRepository(restored, images);
+    final groceries = ShoppingRepository(restored, images);
+    final gym = GymRepository(restored);
+
+    final versions = await Migrator.versions(restored.db);
+    expect(versions['receipts'], receiptsMigrations.latestVersion);
+    expect(versions['groceries'], groceriesMigrations.latestVersion);
+    expect(versions['gym'], gymMigrations.latestVersion);
+    expect(versions['tasks'], tasksMigrations.latestVersion);
+
+    final slips = await expenses.recent();
+    expect(slips, hasLength(20));
+    for (final slip in slips) {
+      if (!slip.hasReceipt) continue;
+      expect(
+        await images.exists(slip.receiptPath),
+        isTrue,
+        reason: '${slip.merchant} lost ${slip.receiptPath}',
+      );
+    }
+
+    expect((await expenses.accounts()), hasLength(4));
+    expect((await expenses.accountViews()), hasLength(1));
+    expect((await expenses.recentIncomes()), hasLength(3));
+    expect((await groceries.loadHistory()), isNotEmpty);
+    expect(await gym.volumeOnDay(DateTime(2026, 8, 22)), greaterThan(0));
   });
 
   test('a zip that is not a Spindle backup is refused', () {

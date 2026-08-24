@@ -10,6 +10,7 @@ import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Setting up an account, or correcting what it started with.
 ///
@@ -156,7 +157,7 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
       backgroundColor: palette.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const AppIcon(SolarIcons.CloseCircle),
           tooltip: 'Discard',
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -312,7 +313,7 @@ class _MarkPad extends StatelessWidget {
           child: SizedBox(
             width: 44,
             height: 44,
-            child: Icon(
+            child: AppIcon(
               mark.icon,
               size: 20,
               color: selected ? palette.paper : palette.print,

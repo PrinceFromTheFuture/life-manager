@@ -8,6 +8,7 @@ import 'package:shopping_list/apps/receipts/ui/accounts/ledger_ref.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One passbook line. The move is coloured; the running balance stays print.
 class LedgerEntryRow extends StatelessWidget {
@@ -39,8 +40,8 @@ class LedgerEntryRow extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Icon(
-                arriving ? Icons.south_west : Icons.north_east,
+              child: AppIcon(
+                arriving ? SolarIcons.ArrowLeftDown : SolarIcons.ArrowRightUp,
                 size: 14,
                 color: moveInk,
               ),

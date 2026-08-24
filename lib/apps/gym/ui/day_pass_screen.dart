@@ -12,6 +12,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/load.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Today's day pass — the session is the calendar day.
 ///
@@ -51,14 +52,14 @@ class _DayPassScreenState extends ConsumerState<DayPassScreen> {
         actions: [
           IconButton(
             tooltip: 'Progress',
-            icon: const Icon(Icons.bar_chart_outlined),
+            icon: const AppIcon(SolarIcons.GraphUp),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ProgressScreen()),
             ),
           ),
           IconButton(
             tooltip: 'Exercises',
-            icon: const Icon(Icons.tune),
+            icon: const AppIcon(SolarIcons.Tuning),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ExercisesScreen()),
             ),
@@ -100,7 +101,7 @@ class _DayPassScreenState extends ConsumerState<DayPassScreen> {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: () => RecordSetScreen.open(context),
-            icon: const Icon(Icons.add, size: 20),
+            icon: const AppIcon(SolarIcons.AddCircle, size: 20),
             label: const Text('Record a set'),
           ),
         ),
@@ -151,7 +152,7 @@ class _DaySelector extends ConsumerWidget {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.chevron_left),
+                icon: const AppIcon(SolarIcons.AltArrowLeft),
                 tooltip: 'Previous day',
                 onPressed: () => ref.read(selectedDayProvider.notifier).state =
                     day.subtract(const Duration(days: 1)),
@@ -186,7 +187,7 @@ class _DaySelector extends ConsumerWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.chevron_right),
+                icon: const AppIcon(SolarIcons.AltArrowRight),
                 tooltip: 'Next day',
                 onPressed: isToday
                     ? null

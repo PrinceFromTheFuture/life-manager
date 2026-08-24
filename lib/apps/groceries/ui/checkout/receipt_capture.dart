@@ -8,6 +8,7 @@ import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Photographs or picks the receipt for a trip.
 ///
@@ -73,7 +74,7 @@ class _ReceiptCaptureState extends ConsumerState<ReceiptCapture> {
           flex: 2,
           child: FilledButton.icon(
             onPressed: _busy ? null : () => _pick(ImageSource.camera),
-            icon: const Icon(Icons.photo_camera_outlined, size: 20),
+            icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 20),
             label: const Text('Photograph receipt'),
           ),
         ),

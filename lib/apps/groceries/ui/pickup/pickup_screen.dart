@@ -12,6 +12,7 @@ import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/apps/groceries/ui/checkout/checkout_screen.dart';
 import 'package:shopping_list/apps/groceries/ui/list/item_row.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The mode for actually being in the shop.
 ///
@@ -57,7 +58,7 @@ class _PickupScreenState extends ConsumerState<PickupScreen> {
       backgroundColor: palette.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const AppIcon(SolarIcons.CloseCircle),
           tooltip: 'Leave pick-up',
           onPressed: () => Navigator.of(context).pop(),
         ),

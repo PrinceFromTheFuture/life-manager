@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:shopping_list/apps/tasks/ui/task_alert_host.dart';
 import 'package:shopping_list/core/backup/auto_backup.dart';
 import 'package:shopping_list/core/design/ink_scope.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
@@ -21,7 +22,9 @@ class SpindleApp extends StatelessWidget {
       // The shell is inked in plain print, so the only colour anywhere on the
       // hub belongs to a mini-app.
       home: AutoBackupHost(
-        child: InkScope(ink: shellInk, child: const HubScreen()),
+        child: TaskAlertHost(
+          child: InkScope(ink: shellInk, child: const HubScreen()),
+        ),
       ),
     );
   }

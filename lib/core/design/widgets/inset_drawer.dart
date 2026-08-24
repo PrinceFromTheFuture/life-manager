@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Navigation inside an [showInsetDrawer] — lets a view swap the drawer's
 /// contents without opening a new screen.
@@ -111,6 +112,7 @@ class _InsetDrawerState extends State<_InsetDrawer> {
           clipBehavior: Clip.antiAlias,
           child: SafeArea(
             top: false,
+            bottom: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -186,7 +188,7 @@ class DrawerViewHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, size: 20),
+            icon: const AppIcon(SolarIcons.AltArrowLeft, size: 20),
             tooltip: 'Back',
             onPressed: scope.back,
           ),

@@ -22,6 +22,7 @@ import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/settings/api_keys.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Recording an expense.
 ///
@@ -561,7 +562,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
         backgroundColor: palette.paper,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const AppIcon(SolarIcons.CloseCircle),
             tooltip: 'Discard',
             onPressed: () => unawaited(_requestLeave(fromCloseButton: true)),
           ),
@@ -611,7 +612,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                     ),
                     Row(
                       children: [
-                        Icon(Icons.place_outlined,
+                        AppIcon(SolarIcons.MapPoint,
                             size: 15, color: palette.faded),
                         const SizedBox(width: Space.xs),
                         Expanded(
@@ -735,7 +736,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                       _showNote = true;
                       _keypadOpen = false;
                     }),
-                    icon: const Icon(Icons.add, size: 18),
+                    icon: const AppIcon(SolarIcons.AddCircle, size: 18),
                     label: const Text('Add a note'),
                   ),
                 ),
@@ -820,7 +821,7 @@ class _CaptureStage extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: busy ? null : onCamera,
-              icon: const Icon(Icons.photo_camera_outlined, size: 20),
+              icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 20),
               label: const Text('Photograph the receipt'),
             ),
           ),
@@ -965,8 +966,8 @@ class _AmountRow extends StatelessWidget {
             ),
             const Spacer(),
             // A quiet marker that this is editable, and which state it's in.
-            Icon(
-              active ? Icons.keyboard_hide_outlined : Icons.dialpad,
+            AppIcon(
+              active ? SolarIcons.Minimize : SolarIcons.Calculator,
               size: 20,
               color: active ? palette.carbon : palette.faded,
             ),
@@ -1304,7 +1305,7 @@ class _ReceiptStrip extends ConsumerWidget {
           const SizedBox(height: Space.sm),
           OutlinedButton.icon(
             onPressed: onRetake,
-            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+            icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
             label: const Text('Photograph it'),
           ),
         ],

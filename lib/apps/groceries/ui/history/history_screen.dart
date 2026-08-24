@@ -11,6 +11,7 @@ import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/core/util/money.dart';
 import 'package:shopping_list/apps/groceries/ui/history/trip_detail_screen.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Past trips, as a stack of receipts torn off the roll.
 ///
@@ -176,7 +177,7 @@ class _ReceiptThumb extends ConsumerWidget {
           border: Border.all(color: palette.perforation),
         ),
         alignment: Alignment.center,
-        child: Icon(Icons.receipt_outlined, size: 18, color: palette.faded),
+        child: AppIcon(SolarIcons.BillList, size: 18, color: palette.faded),
       );
     }
 

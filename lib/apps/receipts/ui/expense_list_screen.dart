@@ -16,6 +16,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Everything you've spent this month, newest first.
 ///
@@ -160,7 +161,7 @@ class MonthSelector extends ConsumerWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.chevron_left),
+            icon: const AppIcon(SolarIcons.AltArrowLeft),
             tooltip: 'Previous month',
             onPressed: () => ref.read(selectedMonthProvider.notifier).state =
                 DateTime(month.year, month.month - 1),
@@ -187,7 +188,7 @@ class MonthSelector extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right),
+            icon: const AppIcon(SolarIcons.AltArrowRight),
             tooltip: 'Next month',
             // A future month is never useful — nothing has been logged there
             // yet, so stepping past "now" would just show an empty screen.
@@ -285,7 +286,7 @@ class _SortControl extends ConsumerWidget {
             sort.label,
             style: Type.caption.copyWith(color: palette.carbon),
           ),
-          Icon(Icons.arrow_drop_down, size: 18, color: palette.carbon),
+          AppIcon(SolarIcons.AltArrowDown, size: 18, color: palette.carbon),
         ],
       ),
     );
@@ -410,7 +411,7 @@ class _ExpenseRow extends ConsumerWidget {
         color: palette.paperShade,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: Space.lg),
-        child: Icon(Icons.delete_outline, color: palette.faded),
+        child: AppIcon(SolarIcons.TrashBinMinimalistic, color: palette.faded),
       ),
       // Unlike a list item, this deletes a photo too — so it asks first rather
       // than offering an undo it could not honour.

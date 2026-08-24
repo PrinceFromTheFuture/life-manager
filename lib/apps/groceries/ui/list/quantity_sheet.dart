@@ -11,6 +11,7 @@ import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Units offered for a line. `null` means a plain count, shown as `×`.
 const List<(String label, String? unit)> _units = [
@@ -100,14 +101,14 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _StepButton(
-                  icon: Icons.remove,
+                  icon: SolarIcons.MinusCircle,
                   onPressed: _quantity > 0 ? () => _bump(-_step) : null,
                 ),
                 Text(
                   _quantityLabel,
                   style: Type.totalDisplay.copyWith(color: palette.print),
                 ),
-                _StepButton(icon: Icons.add, onPressed: () => _bump(_step)),
+                _StepButton(icon: SolarIcons.AddCircle, onPressed: () => _bump(_step)),
               ],
             ),
             const SizedBox(height: Space.lg),
@@ -163,7 +164,7 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
 class _StepButton extends StatelessWidget {
   const _StepButton({required this.icon, required this.onPressed});
 
-  final IconData icon;
+  final SolarIconData icon;
   final VoidCallback? onPressed;
 
   @override
@@ -175,7 +176,7 @@ class _StepButton extends StatelessWidget {
       onPressed: onPressed,
       primary: false,
       size: const Size(64, 64),
-      child: Icon(
+      child: AppIcon(
         icon,
         size: 28,
         color: enabled ? palette.print : palette.faded,

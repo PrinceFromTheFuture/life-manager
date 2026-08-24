@@ -7,6 +7,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One labelled section of a sheet, closed by a perforated rule.
 ///
@@ -79,8 +80,8 @@ class SheetAmountRow extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Icon(
-              active ? Icons.keyboard_hide_outlined : Icons.dialpad,
+            AppIcon(
+              active ? SolarIcons.Minimize : SolarIcons.Calculator,
               size: 20,
               color: active ? palette.carbon : palette.faded,
             ),

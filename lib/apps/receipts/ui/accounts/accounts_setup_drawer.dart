@@ -11,6 +11,7 @@ import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/inset_drawer.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The two setup actions that almost never happen, so they do not live on the
 /// accounts page itself.
@@ -237,7 +238,7 @@ class _AccountPick extends StatelessWidget {
                 style: Type.item.copyWith(color: palette.print),
               ),
             ),
-            Icon(Icons.chevron_right, color: palette.faded, size: 20),
+            AppIcon(SolarIcons.AltArrowRight, color: palette.faded, size: 20),
           ],
         ),
       ),

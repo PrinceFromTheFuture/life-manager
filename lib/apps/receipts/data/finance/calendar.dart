@@ -24,6 +24,16 @@ abstract final class Calendar {
   static DateTime startOfDay(DateTime when) =>
       DateTime(when.year, when.month, when.day);
 
+  static DateTime startOfMonth(DateTime when) =>
+      DateTime(when.year, when.month);
+
+  /// Monday of the week containing [when], local midnight — same week the
+  /// gym uses, so the two apps agree what "this week" means.
+  static DateTime startOfWeek(DateTime when) {
+    final day = startOfDay(when);
+    return day.subtract(Duration(days: day.weekday - DateTime.monday));
+  }
+
   static bool isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 }

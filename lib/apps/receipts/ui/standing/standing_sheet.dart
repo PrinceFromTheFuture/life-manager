@@ -13,6 +13,7 @@ import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Describing something that repeats.
 ///
@@ -181,7 +182,7 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
       backgroundColor: palette.paper,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const AppIcon(SolarIcons.CloseCircle),
           tooltip: 'Discard',
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -433,7 +434,7 @@ class _DateLine extends StatelessWidget {
             ),
             if (onClear != null)
               IconButton(
-                icon: const Icon(Icons.close, size: 18),
+                icon: const AppIcon(SolarIcons.CloseCircle, size: 18),
                 tooltip: 'Clear end date',
                 onPressed: onClear,
               ),

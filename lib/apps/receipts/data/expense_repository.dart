@@ -9,7 +9,9 @@ import 'package:shopping_list/apps/receipts/data/dao/recurring_dao.dart';
 import 'package:shopping_list/apps/receipts/data/finance/calendar.dart';
 import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/data/finance/statement_cycle.dart';
+import 'package:shopping_list/apps/receipts/data/dao/account_view_dao.dart';
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/data/models/account_entry.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
@@ -49,6 +51,31 @@ class AccountStanding {
   int get owedMinor => committed.values.fold(0, (sum, value) => sum + value);
 }
 
+/// Standings that belong on the page right now.
+///
+/// All (a null view) keeps the old rule: the headline is live accounts, the
+/// carousel still shows retired ones so their history is reachable. A named
+/// view is only the accounts that were picked, in the order the passbooks
+/// already use.
+List<AccountStanding> standingsInView(
+  List<AccountStanding> standings,
+  AccountView? view, {
+  required bool forHeadline,
+}) {
+  if (view == null) {
+    if (!forHeadline) return standings;
+    return [
+      for (final s in standings)
+        if (s.account.archivedAt == null) s,
+    ];
+  }
+  final ids = view.accountIds.toSet();
+  return [
+    for (final s in standings)
+      if (ids.contains(s.account.id)) s,
+  ];
+}
+
 class ExpenseRepository {
   ExpenseRepository(this._appDb, this.images);
 
@@ -63,6 +90,7 @@ class ExpenseRepository {
   LedgerDao get ledger => LedgerDao(_db);
   IncomeDao get incomes => IncomeDao(_db);
   RecurringDao get recurring => RecurringDao(_db);
+  AccountViewDao get views => AccountViewDao(_db);
 
   // ---------------------------------------------------------------- reading
 
@@ -569,4 +597,14 @@ class ExpenseRepository {
 
   Future<void> reorderAccounts(List<int> idsInOrder) =>
       lookups.reorderAccounts(idsInOrder);
+
+  Future<List<AccountView>> accountViews() => views.all();
+
+  Future<int?> activeAccountViewId() => views.activeId();
+
+  Future<void> setActiveAccountView(int? id) => views.setActive(id);
+
+  Future<AccountView> saveAccountView(AccountView view) => views.save(view);
+
+  Future<void> deleteAccountView(int id) => views.delete(id);
 }

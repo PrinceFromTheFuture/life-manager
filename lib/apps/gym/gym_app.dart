@@ -8,6 +8,7 @@ import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/db/migration.dart';
+import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Gym progress, as a mini-app.
 class GymApp implements MiniApp {
@@ -31,7 +32,7 @@ class GymApp implements MiniApp {
       );
 
   @override
-  IconData get icon => Icons.fitness_center_outlined;
+  SolarIconData get icon => SolarIcons.DumbbellLargeMinimalistic;
 
   @override
   ModuleMigrations get migrations => gymMigrations;
