@@ -1,9 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'package:shopping_list/core/db/migration.dart';
+
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
+import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/data/finance/statement_cycle.dart';
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
 import 'package:shopping_list/apps/receipts/data/models/account_entry.dart';
@@ -158,12 +162,52 @@ void main() {
 
     test('a reversal is never itself reversed twice', () async {
       final saved = await spend(amountMinor: 28490, method: direct);
-      await repo.update(saved.copyWith(merchant: 'Shufersal'));
-      await repo.update(saved.copyWith(merchant: 'Osher Ad'));
+      await repo.update(saved.copyWith(amountMinor: 30000));
+      await repo.update(saved.copyWith(amountMinor: 31000));
 
       // Two edits: two reversals and three postings, and the balance is still
       // one expense worth of money.
+      expect(await balance(), 1000000 - 31000);
+      final lines = await repo.ledgerFor(account.id!);
+      expect(lines, hasLength(5));
+    });
+
+    test('an edit that moves no money leaves the ledger alone', () async {
+      final saved = await spend(amountMinor: 28490, method: direct);
+      await repo.update(saved.copyWith(merchant: 'Shufersal'));
+
+      // Renaming the shop is not a refund followed by a fresh purchase. Posting
+      // a cancelling pair for it was what filled a day with money that never
+      // moved.
+      final lines = await repo.ledgerFor(account.id!);
+      expect(lines, hasLength(1));
+      expect(lines.single.entry.kind, LedgerKind.expense);
+      expect(lines.single.entry.note, contains('Shufersal'));
       expect(await balance(), 1000000 - 28490);
+    });
+
+    test('a correction is dated to the day the money actually moved', () async {
+      final saved = await spend(
+        amountMinor: 5000,
+        method: direct,
+        on: DateTime(2026, 8, 3),
+      );
+      await repo.update(saved.copyWith(amountMinor: 6000));
+
+      final lines = await repo.ledgerFor(account.id!);
+      expect(lines, hasLength(3));
+      // Every line sits on the 3rd, including the reversal written today, so
+      // no other day picks up a phantom credit.
+      expect(
+        lines.map((l) => l.entry.occurredAt).toSet(),
+        {DateTime(2026, 8, 3)},
+      );
+
+      // And counted as movement, the day holds one ₪60 slip — not ₪110 out
+      // with ₪50 arriving.
+      final moved = Ledger.movement(lines);
+      expect(moved, hasLength(1));
+      expect(moved.single.entry.amountMinor, -6000);
     });
 
     test('deleting an income takes it back out', () async {
@@ -315,6 +359,80 @@ void main() {
         now: DateTime(2026, 8, 19),
       );
       expect(again.isEmpty, isTrue);
+    });
+  });
+
+  // Databases already on a phone hold reversals stamped with the day the edit
+  // was made. The balance was always right, so nothing but the dates needs
+  // repairing — and the dates are what every per-day figure reads.
+  group('repairing corrections written before the fix', () {
+    test('an existing reversal moves onto the day it cancels', () async {
+      final dir = await Directory.systemTemp.createTemp('reversal_backfill');
+      final path = p.join(dir.path, 'app.db');
+
+      // The schema as it shipped, without the backfill step.
+      final beforeBackfill = ModuleMigrations(
+        moduleId: receiptsMigrations.moduleId,
+        migrations: receiptsMigrations.migrations
+            .where((m) => m.version < 7)
+            .toList(),
+      );
+
+      final spentOn = DateTime(2026, 8, 3);
+      final editedOn = DateTime(2026, 8, 27);
+
+      final old = await AppDatabase.open(
+        factory: databaseFactoryFfi,
+        path: path,
+        modules: [beforeBackfill],
+      );
+      final acc = await old.db.insert('accounts', {
+        'name': 'Bank',
+        'kind': 'bank',
+        'opening_minor': 0,
+        'sort': 0,
+        'mark': 'vault',
+      });
+      final original = await old.db.insert('account_entries', {
+        'account_id': acc,
+        'occurred_at': spentOn.millisecondsSinceEpoch,
+        'amount_minor': -5000,
+        'kind': 'expense',
+        'created_at': spentOn.millisecondsSinceEpoch,
+      });
+      // The old behaviour: dated to the correction, not to the movement.
+      final reversal = await old.db.insert('account_entries', {
+        'account_id': acc,
+        'occurred_at': editedOn.millisecondsSinceEpoch,
+        'amount_minor': 5000,
+        'kind': 'reversal',
+        'reverses_id': original,
+        'created_at': editedOn.millisecondsSinceEpoch,
+      });
+      await old.close();
+
+      final repaired = await AppDatabase.open(
+        factory: databaseFactoryFfi,
+        path: path,
+        modules: [receiptsMigrations],
+      );
+      final rows = await repaired.db.query(
+        'account_entries',
+        where: 'id = ?',
+        whereArgs: [reversal],
+      );
+      expect(
+        rows.single['occurred_at'],
+        spentOn.millisecondsSinceEpoch,
+        reason: 'the reversal should sit on the day the money moved',
+      );
+      expect(
+        rows.single['created_at'],
+        editedOn.millisecondsSinceEpoch,
+        reason: 'when the correction was made is still on record',
+      );
+      await repaired.close();
+      await dir.delete(recursive: true);
     });
   });
 }

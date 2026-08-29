@@ -400,6 +400,35 @@ void main() {
       );
     });
 
+    // The Accounts headline sums whatever view is active. If it ever went back
+    // to summing every account, the number would contradict the passbooks on
+    // screen right beside it.
+    test('a view total counts only the accounts it holds', () async {
+      final cash =
+          (await repo.accounts()).firstWhere((a) => a.name == 'Cash');
+      final savings = await repo.addAccount('Savings', kind: 'bank');
+      await repo.setOpeningBalance(cash.id!, 30000);
+      await repo.setOpeningBalance(savings.id!, 500000);
+
+      final spend = await repo.saveAccountView(
+        AccountView(name: 'To spend', accountIds: [cash.id!]),
+      );
+
+      int totalOf(AccountView? view, List<AccountStanding> standings) =>
+          standingsInView(standings, view, forHeadline: true)
+              .fold<int>(0, (sum, s) => sum + s.balanceMinor);
+
+      final standings = await repo.standings();
+      final views = await repo.accountViews();
+      expect(totalOf(viewById(views, spend.id), standings), 30000);
+
+      // All is a different number, and the savings pot is the difference.
+      expect(
+        totalOf(null, standings) - totalOf(viewById(views, spend.id), standings),
+        500000,
+      );
+    });
+
     test('deleting a view falls back to All', () async {
       final cash =
           (await repo.accounts()).firstWhere((a) => a.name == 'Cash');

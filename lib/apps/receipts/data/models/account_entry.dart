@@ -22,10 +22,11 @@ enum LedgerKind {
 
 /// One immutable line of an account's history.
 ///
-/// Nothing in the app issues an `UPDATE` or `DELETE` against this table. A
-/// mistake is corrected by appending a [LedgerKind.reversal] that points at the
-/// line it undoes, which is why the account screen can show you not just the
-/// balance but how it got there.
+/// No amount here is ever rewritten and no line is ever deleted. A mistake is
+/// corrected by appending a [LedgerKind.reversal] that points at the line it
+/// undoes, which is why the account screen can show you not just the balance
+/// but how it got there. The one field that does get rewritten in place is
+/// [note], a cached label that no sum depends on.
 class AccountEntry {
   const AccountEntry({
     this.id,

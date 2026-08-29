@@ -7,12 +7,17 @@ import 'package:shopping_list/core/util/money.dart';
 /// What the parser could pull out of a receipt's OCR text. Every field is
 /// nullable — a real receipt often doesn't have all of them legibly, and the
 /// form takes each one only as a starting point.
+///
+/// The date is deliberately absent. Receipts and bank notifications routinely
+/// print no year, or a two-digit one the reader cannot disambiguate, so any
+/// year the model produced was a guess — and a wrong year hides the expense
+/// from the month it belongs to while still moving the balance. The expense is
+/// dated when you record it, and only you can change that.
 class ParsedReceipt {
   const ParsedReceipt({
     this.merchant,
     this.totalAmountMinor,
     this.currency,
-    this.occurredAt,
     this.categoryGuess,
     this.description,
   });
@@ -20,7 +25,6 @@ class ParsedReceipt {
   final String? merchant;
   final int? totalAmountMinor;
   final String? currency;
-  final DateTime? occurredAt;
   final String? categoryGuess;
   final String? description;
 }
@@ -63,9 +67,6 @@ class ReceiptParser {
       'currency': {
         'type': ['string', 'null']
       },
-      'date': {
-        'type': ['string', 'null']
-      },
       'categoryGuess': {
         'type': ['string', 'null']
       },
@@ -77,7 +78,6 @@ class ReceiptParser {
       'merchant',
       'totalAmount',
       'currency',
-      'date',
       'categoryGuess',
       'description',
     ],
@@ -102,7 +102,7 @@ Reply with ONLY a JSON object matching the schema. No markdown, no commentary.
 categoryGuess must be one of: $categoryList, or null.
 totalAmount is the final total payable as a plain number, no currency symbol.
 currency is a 3-letter ISO 4217 code (e.g. ILS, USD), or null.
-date is ISO 8601 YYYY-MM-DD, or null.''';
+Never report a date. The app dates the expense itself.''';
 
     final messages = [
       {'role': 'system', 'content': systemPrompt},
@@ -156,7 +156,6 @@ date is ISO 8601 YYYY-MM-DD, or null.''';
       merchant: _asString(fields['merchant']),
       totalAmountMinor: _toMinor(fields['totalAmount']),
       currency: _asString(fields['currency']),
-      occurredAt: _parseDate(_asString(fields['date'])),
       categoryGuess: _asString(fields['categoryGuess']),
       description: _asString(fields['description']),
     );
@@ -260,11 +259,6 @@ date is ISO 8601 YYYY-MM-DD, or null.''';
       return trimmed;
     }
     return value.toString();
-  }
-
-  static DateTime? _parseDate(String? date) {
-    if (date == null) return null;
-    return DateTime.tryParse(date);
   }
 
   static String _errorSnippet(String body) {

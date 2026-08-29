@@ -280,16 +280,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       if (parsed.totalAmountMinor != null) {
         _amount = AmountEntry.fromAgorot(parsed.totalAmountMinor!);
       }
-      if (parsed.occurredAt != null) {
-        final d = parsed.occurredAt!;
-        _occurredAt = DateTime(
-          d.year,
-          d.month,
-          d.day,
-          _occurredAt.hour,
-          _occurredAt.minute,
-        );
-      }
       if ((parsed.description ?? '').trim().isNotEmpty) {
         _noteController.text = parsed.description!.trim();
         _showNote = true;

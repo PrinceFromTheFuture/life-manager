@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
+import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_setup_drawer.dart';
@@ -180,24 +182,33 @@ class _Summary extends StatelessWidget {
 }
 
 /// What you have, and what the cards are about to take.
+///
+/// The headline is the total of whichever view is active, and tapping it is how
+/// you change view. The number and the carousel below it have to agree: a
+/// headline that always summed every account would contradict the passbooks on
+/// screen the moment a view was in use.
 class _AccountsSummary extends ConsumerWidget {
   const _AccountsSummary();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
+    final all = ref.watch(accountStandingsProvider).valueOrNull;
+    final views = ref.watch(accountViewsProvider).valueOrNull ?? const [];
+    final activeId = ref.watch(activeAccountViewIdProvider).valueOrNull;
+    final view = viewById(views, activeId);
+
     // Retired accounts are still listed below, but they are not money you have
     // — leaving them in the headline would overstate it every month.
-    final standings = ref
-        .watch(accountStandingsProvider)
-        .valueOrNull
-        ?.where((s) => s.account.archivedAt == null)
-        .toList();
+    final standings = all == null
+        ? null
+        : standingsInView(all, view, forHeadline: true);
 
     final onHand =
         standings?.fold<int>(0, (sum, s) => sum + s.balanceMinor) ?? 0;
     final today =
         standings?.fold<int>(0, (sum, s) => sum + s.todayDeltaMinor) ?? 0;
+    final label = view == null ? 'ON HAND' : view.name.toUpperCase();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -206,35 +217,59 @@ class _AccountsSummary extends ConsumerWidget {
         Space.lg,
         Space.xl + 10,
       ),
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ON HAND', style: Type.eyebrow.copyWith(color: palette.faded, )),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: Space.xs),
-              child: standings == null
-                  ? Text(
-                      '—',
-                      style: Type.totalDisplay.copyWith(
-                        color: palette.print,
-                        fontSize: 48,
-                        fontFamily: Fonts.display,
-                      ),
-                    )
-                  : CountUpMoney(
-                      amountMinor: onHand,
-                      style: Type.totalDisplay.copyWith(
-                        color: palette.print,
-                        fontFamily: Fonts.display,
-                        fontSize: 48,
+      child: Semantics(
+        button: true,
+        label: 'View: ${view?.name ?? AccountView.allLabel}. Change view.',
+        child: InkWell(
+          onTap: () => openAccountViewsDrawer(context),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Type.eyebrow.copyWith(color: palette.faded),
                       ),
                     ),
+                    const SizedBox(width: Space.xs),
+                    AppIcon(
+                      SolarIcons.AltArrowDown,
+                      size: 14,
+                      color: palette.faded,
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Space.xs),
+                  child: standings == null
+                      ? Text(
+                          '—',
+                          style: Type.totalDisplay.copyWith(
+                            color: palette.print,
+                            fontSize: 48,
+                            fontFamily: Fonts.display,
+                          ),
+                        )
+                      : CountUpMoney(
+                          amountMinor: onHand,
+                          style: Type.totalDisplay.copyWith(
+                            color: palette.print,
+                            fontFamily: Fonts.display,
+                            fontSize: 48,
+                          ),
+                        ),
+                ),
+                if (standings != null)
+                  ChangeChip(deltaMinor: today, balanceMinor: onHand),
+              ],
             ),
-            if (standings != null)
-              ChangeChip(deltaMinor: today, balanceMinor: onHand),
-          ],
+          ),
         ),
       ),
     );

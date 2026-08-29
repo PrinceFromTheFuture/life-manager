@@ -297,10 +297,11 @@ class ExpenseRepository {
     String? receiptSourcePath,
   }) async {
     var updated = expense;
+    final previous = await expenses.byId(expense.id!);
     String? previousPath;
 
     if (receiptSourcePath != null) {
-      previousPath = (await expenses.byId(expense.id!))?.receiptPath;
+      previousPath = previous?.receiptPath;
       final stored = await images.saveReceipt(receiptSourcePath);
       updated = updated.copyWith(receiptPath: stored);
     }
@@ -316,8 +317,20 @@ class ExpenseRepository {
 
       // The ledger is append-only, so a correction is two lines: one undoing
       // what the old version posted, one posting what the new version does.
-      await _reverseEntriesFor(txn, updated.id!);
-      await _postExpense(txn, updated);
+      // Only worth writing when the new version would post something different
+      // — recategorising a slip or fixing its note moves no money, and a pair
+      // of cancelling lines for it is noise that every figure derived from the
+      // ledger then has to see through.
+      if (previous == null || _postsDifferently(previous, updated)) {
+        await _reverseEntriesFor(txn, updated.id!);
+        await _postExpense(txn, updated);
+      } else if (previous.title != updated.title) {
+        await LedgerDao(txn).correctNote(
+          refTable: ReceiptActivity.expensesTable,
+          refId: updated.id!,
+          note: updated.title,
+        );
+      }
 
       // The feed caches title/subtitle/amount, so an edit has to correct them
       // there too or the hub keeps showing the old values.
@@ -368,6 +381,18 @@ class ExpenseRepository {
       await images.delete(expense.receiptPath);
     }
   }
+
+  /// Whether [next] would post a different ledger line than [previous] did.
+  ///
+  /// These are the only parts of a slip the ledger ever sees: how much, the day
+  /// it is dated, and the method — which decides both the account charged and
+  /// whether anything posts at all. Compared in stored precision, because that
+  /// is what a round trip through SQLite preserves.
+  static bool _postsDifferently(Expense previous, Expense next) =>
+      previous.amountMinor != next.amountMinor ||
+      previous.occurredAt.millisecondsSinceEpoch !=
+          next.occurredAt.millisecondsSinceEpoch ||
+      previous.paymentMethodId != next.paymentMethodId;
 
   /// Fills in which account a slip drained, from the method it was paid with.
   Future<Expense> _mirrorAccount(DatabaseExecutor txn, Expense expense) async {

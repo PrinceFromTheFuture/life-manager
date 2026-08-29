@@ -18,7 +18,6 @@ void main() {
           'merchant': 'Rami Levy',
           'totalAmount': 142.50,
           'currency': 'ILS',
-          'date': '2026-08-12',
           'categoryGuess': 'Groceries',
           'description': null,
         }),
@@ -27,8 +26,63 @@ void main() {
       final parsed = await parser.parse('RAMI LEVY\nTOTAL 142.50');
       expect(parsed.merchant, 'Rami Levy');
       expect(parsed.totalAmountMinor, 14250);
-      expect(parsed.occurredAt, DateTime(2026, 8, 12));
       expect(parsed.categoryGuess, 'Groceries');
+    });
+
+    test('never asks the model for a date', () async {
+      late Map<String, Object?> body;
+      final parser = ReceiptParser(
+        'test-key',
+        client: MockClient((request) async {
+          body = jsonDecode(request.body) as Map<String, Object?>;
+          return http.Response(
+            jsonEncode({
+              'choices': [
+                {
+                  'message': {
+                    'content': jsonEncode({
+                      'merchant': 'Rami Levy',
+                      'totalAmount': 10,
+                      'currency': 'ILS',
+                      'categoryGuess': null,
+                      'description': null,
+                    }),
+                  },
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      await parser.parse('RAMI LEVY 10.00');
+      final schema = ((body['response_format'] as Map<String, Object?>)
+          ['json_schema'] as Map<String, Object?>)['schema'] as Map<String, Object?>;
+      expect(
+        (schema['properties'] as Map<String, Object?>).keys,
+        isNot(contains('date')),
+      );
+      expect(schema['required'], isNot(contains('date')));
+    });
+
+    test('drops a date the model volunteers anyway', () async {
+      final parser = ReceiptParser(
+        'test-key',
+        client: _openRouterClient({
+          'merchant': 'AOFIM BAZRIALI',
+          'totalAmount': 36,
+          'currency': 'ILS',
+          'date': '2020-08-24',
+          'categoryGuess': null,
+          'description': null,
+        }),
+      );
+
+      final parsed = await parser.parse('AOFIM BAZRIALI\nMonday, Aug 24');
+      expect(parsed.merchant, 'AOFIM BAZRIALI');
+      expect(parsed.totalAmountMinor, 3600);
     });
 
     test('reads a total sent as a string', () async {
@@ -38,7 +92,6 @@ void main() {
           'merchant': 'Super-Pharm',
           'totalAmount': '19.90',
           'currency': 'ILS',
-          'date': '2026-08-01',
           'categoryGuess': 'Pharmacy',
           'description': 'vitamins',
         }),
@@ -92,7 +145,6 @@ void main() {
                       'merchant': 'Rami Levy',
                       'totalAmount': 10,
                       'currency': 'ILS',
-                      'date': null,
                       'categoryGuess': null,
                       'description': null,
                     }),
@@ -144,7 +196,6 @@ void main() {
                       'merchant': 'Yellow',
                       'totalAmount': 50,
                       'currency': 'ILS',
-                      'date': null,
                       'categoryGuess': 'Fuel',
                       'description': null,
                     }),

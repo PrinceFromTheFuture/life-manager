@@ -206,7 +206,7 @@ class _Enter extends StatelessWidget {
   final start = DateTime(now.year, now.month, now.day);
   var inMinor = 0;
   var outMinor = 0;
-  for (final line in lines) {
+  for (final line in Ledger.movement(lines)) {
     if (line.entry.occurredAt.isBefore(start)) continue;
     final amount = line.entry.amountMinor;
     if (amount > 0) inMinor += amount;

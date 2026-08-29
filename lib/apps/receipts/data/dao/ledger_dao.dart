@@ -101,6 +101,24 @@ class LedgerDao {
     return rows.map(AccountEntry.fromMap).toList();
   }
 
+  /// Corrects the cached label on every line one record posted.
+  ///
+  /// The note is a copy of the source record's title, held so the passbook
+  /// reads without a join. Renaming a shop moves no money, so it must not
+  /// append a cancelling pair — and the old name must not linger either. No
+  /// amount is touched here; changing one still takes a new line.
+  Future<void> correctNote({
+    required String refTable,
+    required int refId,
+    required String note,
+  }) =>
+      _db.update(
+        'account_entries',
+        {'note': note},
+        where: 'ref_table = ? AND ref_id = ?',
+        whereArgs: [refTable, refId],
+      );
+
   /// When this method's statement last settled, so the sweep only considers
   /// cycles that closed after it.
   Future<DateTime?> lastSettlementAt(int paymentMethodId) async {

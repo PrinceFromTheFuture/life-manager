@@ -216,6 +216,78 @@ void main() {
         0,
       );
     });
+
+    test('a reversal is dated to the line it cancels, not to the correction',
+        () {
+      final original = _entry(-25000, day: 3);
+      final reversal = Ledger.reversalOf(original, when: DateTime(2026, 8, 20));
+
+      // The money left on the 3rd, so undoing it belongs on the 3rd. Dating it
+      // to the 20th invented a credit on a day nothing happened.
+      expect(reversal.occurredAt, DateTime(2026, 8, 3));
+      expect(reversal.createdAt, DateTime(2026, 8, 20));
+    });
+
+    test('movement leaves out a corrected line and its correction', () {
+      // A ₪50 slip, corrected to ₪60: three lines, one real movement.
+      final spentOn = DateTime(2026, 8, 3);
+      final original = AccountEntry(
+        id: 1,
+        accountId: 1,
+        occurredAt: spentOn,
+        amountMinor: -5000,
+        kind: LedgerKind.expense,
+        createdAt: spentOn,
+      );
+      final reversal = AccountEntry(
+        id: 2,
+        accountId: 1,
+        occurredAt: spentOn,
+        amountMinor: 5000,
+        kind: LedgerKind.reversal,
+        reversesId: 1,
+        createdAt: DateTime(2026, 8, 9),
+      );
+      final replacement = AccountEntry(
+        id: 3,
+        accountId: 1,
+        occurredAt: spentOn,
+        amountMinor: -6000,
+        kind: LedgerKind.expense,
+        createdAt: DateTime(2026, 8, 9),
+      );
+
+      final lines = Ledger.lines(
+        openingMinor: 100000,
+        entries: [original, reversal, replacement],
+      );
+
+      final moved = Ledger.movement(lines);
+      expect(moved, hasLength(1));
+      expect(moved.single.entry.amountMinor, -6000);
+
+      // Counted gross, the raw lines read as ₪110 out and ₪50 in.
+      var out = 0;
+      var arrived = 0;
+      for (final line in lines) {
+        if (line.entry.amountMinor < 0) out += -line.entry.amountMinor;
+        if (line.entry.amountMinor > 0) arrived += line.entry.amountMinor;
+      }
+      expect(out, 11000);
+      expect(arrived, 5000);
+    });
+
+    test('movement keeps every line when nothing was corrected', () {
+      final lines = Ledger.lines(
+        openingMinor: 0,
+        entries: [
+          _entry(-2500, day: 1),
+          _entry(50000, day: 2, kind: LedgerKind.income),
+          _entry(-1000, day: 3),
+        ],
+      );
+      expect(Ledger.movement(lines), hasLength(3));
+    });
   });
 
   group('Recurrence', () {

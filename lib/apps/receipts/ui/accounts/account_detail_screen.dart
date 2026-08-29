@@ -150,7 +150,7 @@ class AccountDetailScreen extends ConsumerWidget {
       DateTime.now().day,
     );
     var total = 0;
-    for (final line in lines) {
+    for (final line in Ledger.movement(lines)) {
       if (line.entry.occurredAt.isBefore(start)) continue;
       if (line.entry.amountMinor > 0) total += line.entry.amountMinor;
     }
@@ -164,7 +164,7 @@ class AccountDetailScreen extends ConsumerWidget {
       DateTime.now().day,
     );
     var total = 0;
-    for (final line in lines) {
+    for (final line in Ledger.movement(lines)) {
       if (line.entry.occurredAt.isBefore(start)) continue;
       if (line.entry.amountMinor < 0) total += -line.entry.amountMinor;
     }

@@ -187,10 +187,11 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         )
         ''',
 
-        // Append-only. Nothing in the app issues an UPDATE or a DELETE against
-        // this table: a correction is a new row of kind 'reversal' pointing at
-        // the row it undoes. That is what makes a balance reproducible from
-        // history rather than a number someone edited.
+        // Append-only where it counts: no amount is ever rewritten and no row
+        // is ever deleted. A correction is a new row of kind 'reversal'
+        // pointing at the row it undoes, which is what makes a balance
+        // reproducible from history rather than a number someone edited. Only
+        // `note`, a cached label no sum reads, is corrected in place.
         '''
         CREATE TABLE IF NOT EXISTS account_entries (
           id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -375,6 +376,33 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         ''',
         '''
         INSERT INTO account_view_state (id, active_view_id) VALUES (1, NULL)
+        ''',
+      ],
+    ),
+
+    // Reversals used to be stamped with the moment the correction was made
+    // rather than the day of the line they undo. Editing a slip therefore left
+    // its own day counting the money twice and dropped a credit that never
+    // arrived into whatever day you happened to be editing on.
+    //
+    // Moving each one onto its original's date cannot change a balance: a
+    // reversal always sits in the same account as the line it cancels, so the
+    // pair still sums to zero. Only which day owns the pair changes, and the
+    // day it moves to is the day the money really moved. `created_at` is left
+    // alone, so when the correction was made is still on record.
+    Migration(
+      version: 7,
+      statements: [
+        '''
+        UPDATE account_entries SET occurred_at = (
+          SELECT original.occurred_at FROM account_entries original
+          WHERE original.id = account_entries.reverses_id
+        )
+        WHERE kind = 'reversal' AND reverses_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM account_entries original
+            WHERE original.id = account_entries.reverses_id
+          )
         ''',
       ],
     ),

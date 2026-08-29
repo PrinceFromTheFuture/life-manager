@@ -37,13 +37,43 @@ abstract final class Ledger {
     return lines.reversed.toList();
   }
 
+  /// The lines that represent money actually moving.
+  ///
+  /// A reversed line and its reversal are bookkeeping: together they say the
+  /// movement did not happen the way it was first recorded. Counting either of
+  /// them in a gross figure turns one corrected slip into spending plus a
+  /// refund that never arrived, which is how a single edited ₪60 receipt could
+  /// read as ₪110 out and ₪50 in.
+  ///
+  /// Balances do not need this — a pair sums to zero on its own. It is the
+  /// in-and-out splits, where the signs are counted separately, that have to
+  /// leave corrections out.
+  static List<LedgerLine> movement(List<LedgerLine> lines) {
+    final corrected = <int>{
+      for (final line in lines)
+        if (line.entry.reversesId != null) line.entry.reversesId!,
+    };
+    return [
+      for (final line in lines)
+        if (line.entry.kind != LedgerKind.reversal &&
+            !corrected.contains(line.entry.id))
+          line,
+    ];
+  }
+
   /// The entry that undoes [original], for when an expense is edited away or
   /// deleted. Same amount, opposite sign, pointing back at what it cancels.
+  ///
+  /// It carries the date of the line it cancels, not the date you made the
+  /// correction. A reversal is not money moving today — it is the statement
+  /// that the original day's movement was wrong. Stamping it with "now" put a
+  /// phantom credit into today and left the original day counting the slip
+  /// twice. [when] records when the correction was made, on [createdAt].
   static AccountEntry reversalOf(AccountEntry original, {DateTime? when}) {
     final now = when ?? DateTime.now();
     return AccountEntry(
       accountId: original.accountId,
-      occurredAt: now,
+      occurredAt: original.occurredAt,
       amountMinor: -original.amountMinor,
       kind: LedgerKind.reversal,
       refTable: original.refTable,
