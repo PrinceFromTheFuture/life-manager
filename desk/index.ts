@@ -354,14 +354,31 @@ const server = Bun.serve({
               mediaObject = w
                 .require("WAWebMediaStorage")
                 .getOrCreateMediaObject(media.filehash);
-              return mediaObject?.type ?? "no type";
+              return mediaObject?.type ?? "no type yet";
             });
             await step("msgToMediaType", async () => {
               mediaType = MmsMediaTypes.msgToMediaType({
                 type: media.type,
                 isGif: media.isGif,
+                isNewsletter: false,
               });
               return mediaType;
+            });
+            await step("mediaBlobReadied", async () => {
+              if (!(media.mediaBlob instanceof OpaqueData)) {
+                media.mediaBlob = await OpaqueData.createFromData(
+                  media.mediaBlob,
+                  media.mediaBlob.type,
+                );
+                return "recreated";
+              }
+              return "already opaque";
+            });
+            await step("consolidate", async () => {
+              media.renderableUrl = media.mediaBlob.url();
+              mediaObject.consolidate(media.toJSON());
+              media.mediaBlob.autorelease();
+              return mediaObject?.type ?? "still no type";
             });
             await step("castToV4", async () => MmsMediaTypes.castToV4(mediaObject.type));
             await step("uploadMedia", async () => {
