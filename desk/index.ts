@@ -14,12 +14,13 @@ const GAP_MS = 20_000;
 const CHROMIUM = (() => {
   for (const path of [
     Bun.env.CHROMIUM_PATH,
+    "/usr/bin/google-chrome-stable",
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
   ]) {
     if (path && existsSync(path)) return path;
   }
-  return "/usr/bin/chromium";
+  return "/usr/bin/google-chrome-stable";
 })();
 
 type Job = {
