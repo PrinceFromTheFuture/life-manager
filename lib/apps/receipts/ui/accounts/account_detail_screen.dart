@@ -8,6 +8,7 @@ import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/account_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/cycle_band.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/cycle_queue_drawer.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/glass_passbook.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/ledger_entry_row.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/payment_method_sheet.dart';
@@ -250,9 +251,28 @@ class _MethodRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              method.label,
-              style: Type.item.copyWith(color: palette.print),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    method.label,
+                    style: Type.item.copyWith(color: palette.print),
+                  ),
+                ),
+                if (method.isCredit && statementDay != null)
+                  IconButton(
+                    tooltip: 'Waiting to settle',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    icon: const AppIcon(SolarIcons.InfoCircle, size: 18),
+                    onPressed: () =>
+                        openCycleQueueDrawer(context, method: method),
+                  ),
+              ],
             ),
             const SizedBox(height: Space.xs),
             if (method.isCredit && statementDay != null)

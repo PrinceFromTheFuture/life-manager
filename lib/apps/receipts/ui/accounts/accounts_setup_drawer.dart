@@ -13,6 +13,21 @@ import 'package:shopping_list/core/design/widgets/inset_drawer.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
+/// The two setup actions that almost never happen, so they do not live as
+/// separate keys on the accounts page. One New button opens this chooser.
+Future<void> openNewFinanceDrawer(BuildContext context) async {
+  final accountId = await showInsetDrawer<int>(
+    context: context,
+    primary: (_) => const _NewThingChooser(),
+    views: {
+      'account': (_) => const _AddAccountDrawer(),
+      'method': (_) => const _PickAccountDrawer(),
+    },
+  );
+  if (accountId == null || !context.mounted) return;
+  await PaymentMethodSheet.open(context, accountId: accountId);
+}
+
 /// The two setup actions that almost never happen, so they do not live on the
 /// accounts page itself.
 Future<void> openAddAccountDrawer(BuildContext context) {
@@ -29,6 +44,96 @@ Future<void> openAddPaymentMethodDrawer(BuildContext context) async {
   );
   if (accountId == null || !context.mounted) return;
   await PaymentMethodSheet.open(context, accountId: accountId);
+}
+
+class _NewThingChooser extends StatelessWidget {
+  const _NewThingChooser();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+    final scope = DrawerScope.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.lg, Space.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'New',
+            style: Type.display.copyWith(fontSize: 22, color: palette.print),
+          ),
+          const SizedBox(height: Space.xs),
+          Text(
+            'An account is where money sits. A payment method is a way of '
+            'reaching one.',
+            style: Type.caption.copyWith(color: palette.faded),
+          ),
+          const SizedBox(height: Space.lg),
+          _ChooserRow(
+            icon: SolarIcons.SafeCircle,
+            title: 'Account',
+            caption: 'Bank, cash, a card you own.',
+            onTap: () => scope.open('account'),
+          ),
+          const PerforatedRule(),
+          _ChooserRow(
+            icon: SolarIcons.Card,
+            title: 'Payment method',
+            caption: 'A way of paying from an account.',
+            onTap: () => scope.open('method'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChooserRow extends StatelessWidget {
+  const _ChooserRow({
+    required this.icon,
+    required this.title,
+    required this.caption,
+    required this.onTap,
+  });
+
+  final SolarIconData icon;
+  final String title;
+  final String caption;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.thermal;
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.md),
+        child: Row(
+          children: [
+            AppIcon(icon, size: 22, color: palette.print),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Type.item.copyWith(color: palette.print)),
+                  const SizedBox(height: 2),
+                  Text(
+                    caption,
+                    style: Type.caption.copyWith(color: palette.faded),
+                  ),
+                ],
+              ),
+            ),
+            AppIcon(SolarIcons.AltArrowRight, color: palette.faded, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AddAccountDrawer extends ConsumerStatefulWidget {
@@ -92,11 +197,15 @@ class _AddAccountDrawerState extends ConsumerState<_AddAccountDrawer> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'New account',
-            style: Type.display.copyWith(fontSize: 22, color: palette.print),
-          ),
-          const SizedBox(height: Space.xs),
+          if (DrawerScope.of(context).isSecondary)
+            const DrawerViewHeader(title: 'New account')
+          else ...[
+            Text(
+              'New account',
+              style: Type.display.copyWith(fontSize: 22, color: palette.print),
+            ),
+            const SizedBox(height: Space.xs),
+          ],
           Text(
             'Where the money actually sits. Ways of paying hang off it later.',
             style: Type.caption.copyWith(color: palette.faded),
@@ -189,11 +298,15 @@ class _PickAccountDrawer extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'New payment method',
-            style: Type.display.copyWith(fontSize: 22, color: palette.print),
-          ),
-          const SizedBox(height: Space.xs),
+          if (DrawerScope.of(context).isSecondary)
+            const DrawerViewHeader(title: 'New payment method')
+          else ...[
+            Text(
+              'New payment method',
+              style: Type.display.copyWith(fontSize: 22, color: palette.print),
+            ),
+            const SizedBox(height: Space.xs),
+          ],
           Text(
             'A way of reaching an account. Not an account itself.',
             style: Type.caption.copyWith(color: palette.faded),

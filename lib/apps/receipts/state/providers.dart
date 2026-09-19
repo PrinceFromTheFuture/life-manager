@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/receipts/data/accountant_desk.dart';
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/finance/ledger.dart';
 import 'package:shopping_list/apps/receipts/data/location_service.dart';
@@ -144,8 +145,8 @@ class ExpensesController extends AsyncNotifier<List<Expense>> {
 
   ExpenseRepository get _repo => ref.read(expenseRepositoryProvider);
 
-  /// Public because the standing-order sweep writes expenses behind the list's
-  /// back and has to tell it so.
+  /// Public because a settlement can write behind the list's back and has
+  /// to tell it so.
   Future<void> reload() async {
     state = AsyncData(await _repo.recent());
     // The hub caches these rows, so it is stale the moment this changes.
@@ -179,6 +180,27 @@ class ExpensesController extends AsyncNotifier<List<Expense>> {
     await _repo.delete(id);
     await reload();
     ref.invalidate(expenseDetailProvider(id));
+  }
+
+  /// Hands these slips to the accountant desk and takes them off the tray.
+  Future<int> handToAccountant(
+    List<Expense> slips, {
+    required AccountantDesk desk,
+  }) async {
+    final payloads = <AccountantPayload>[];
+    for (final slip in slips) {
+      if (slip.id == null || !slip.hasReceipt) continue;
+      final file = await _repo.images.resolve(slip.receiptPath);
+      if (!await file.exists()) continue;
+      payloads.add(AccountantPayload.fromExpense(slip, file));
+    }
+    if (payloads.isEmpty) {
+      throw AccountantDeskException('No receipt photos to send.');
+    }
+    await desk.transmit(payloads);
+    await _repo.markTransmitted(payloads.map((p) => p.expenseId));
+    await reload();
+    return payloads.length;
   }
 }
 
@@ -259,7 +281,7 @@ final receiptsTabProvider = StateProvider<int>((ref) => 0);
 // ------------------------------------------------------------------ finance
 
 /// Bumped by every write that touches the ledger from outside the expense list
-/// — income, a settlement, a new payment method, a standing order.
+/// — income, a settlement, a new payment method, a recurring template.
 ///
 /// One dial rather than a list of invalidations at each call site: forgetting
 /// one of five `ref.invalidate` lines is how a balance ends up stale on one
@@ -330,6 +352,13 @@ final recurringRulesProvider = FutureProvider<List<RecurringRule>>((ref) {
 final recurringMonthlyTotalProvider = FutureProvider<int>((ref) {
   ref.watch(financeRevisionProvider);
   return ref.watch(expenseRepositoryProvider).recurringMonthlyTotal();
+});
+
+/// Recurring templates that already have a slip in the current calendar month.
+final recurringLinkedThisMonthProvider = FutureProvider<Set<int>>((ref) {
+  ref.watch(financeRevisionProvider);
+  ref.watch(expensesProvider);
+  return ref.watch(expenseRepositoryProvider).recurringLinkedInMonth();
 });
 
 /// Everything that writes money outside the expense list.
@@ -405,6 +434,24 @@ class FinanceController {
 
   Future<void> addIncome(Income income) async {
     await _repo.addIncome(income);
+    ref.invalidate(activityFeedProvider);
+    _touch();
+  }
+
+  Future<void> transfer({
+    required int fromAccountId,
+    required int toAccountId,
+    required int amountMinor,
+    required DateTime occurredAt,
+    String? note,
+  }) async {
+    await _repo.transfer(
+      fromAccountId: fromAccountId,
+      toAccountId: toAccountId,
+      amountMinor: amountMinor,
+      occurredAt: occurredAt,
+      note: note,
+    );
     ref.invalidate(activityFeedProvider);
     _touch();
   }
@@ -487,4 +534,25 @@ final kindTotalsByMonthProvider =
     FutureProvider.autoDispose<List<MonthKindTotals>>((ref) {
   ref.watch(expensesProvider);
   return ref.watch(expenseRepositoryProvider).kindTotalsByMonth();
+});
+
+/// Business photos that have not been handed to the accountant. All time.
+final pendingAccountantProvider =
+    FutureProvider.autoDispose<List<Expense>>((ref) {
+  ref.watch(expensesProvider);
+  return ref.watch(expenseRepositoryProvider).pendingAccountant();
+});
+
+final handedAccountantProvider =
+    FutureProvider.autoDispose<List<Expense>>((ref) {
+  ref.watch(expensesProvider);
+  return ref.watch(expenseRepositoryProvider).handedAccountant();
+});
+
+final accountantDeskOriginProvider = FutureProvider<String>((ref) async {
+  final raw = await ref
+      .watch(apiKeyStoreProvider)
+      .readNamed(AccountantDesk.storageKey);
+  if (raw == null || raw.trim().isEmpty) return AccountantDesk.hostedOrigin;
+  return AccountantDesk.normalizeOrigin(raw);
 });

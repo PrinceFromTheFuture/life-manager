@@ -67,13 +67,38 @@ class RecurringDao {
   Future<void> delete(int id) =>
       _db.delete('recurring_rules', where: 'id = ?', whereArgs: [id]);
 
-  /// What every active rule adds up to in a month, for the section summary.
+  /// What every expense rule adds up to in a month, for the section summary.
   Future<int> monthlyTotal() async =>
       Sqflite.firstIntValue(
         await _db.rawQuery(
           'SELECT COALESCE(SUM(amount_minor), 0) FROM recurring_rules '
-          "WHERE active = 1 AND kind = 'expense'",
+          "WHERE kind = 'expense'",
         ),
       ) ??
       0;
+
+  /// Recurring templates that already have a slip or an income in [from, to).
+  ///
+  /// The recurring page uses this for the current calendar month: no row in
+  /// this set is still missing.
+  Future<Set<int>> linkedRuleIdsBetween(DateTime from, DateTime to) async {
+    final fromMs = from.millisecondsSinceEpoch;
+    final toMs = to.millisecondsSinceEpoch;
+    final rows = await _db.rawQuery(
+      '''
+      SELECT recurring_rule_id AS id FROM expenses
+      WHERE recurring_rule_id IS NOT NULL
+        AND occurred_at >= ? AND occurred_at < ?
+      UNION
+      SELECT recurring_rule_id AS id FROM incomes
+      WHERE recurring_rule_id IS NOT NULL
+        AND occurred_at >= ? AND occurred_at < ?
+      ''',
+      [fromMs, toMs, fromMs, toMs],
+    );
+    return {
+      for (final row in rows)
+        if (row['id'] != null) row['id'] as int,
+    };
+  }
 }

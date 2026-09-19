@@ -482,7 +482,7 @@ class _ExpenseRow extends ConsumerWidget {
 
   static String? _subtitle(Expense expense, Map<int?, String> methodNames) {
     final parts = <String>[
-      if (expense.isAutoCreated) 'Standing',
+      if (expense.isAutoCreated) 'Recurring',
       if (expense.isBusiness) 'Business',
     ];
 

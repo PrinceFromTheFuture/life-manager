@@ -30,6 +30,7 @@ class Expense {
     this.ocrRaw,
     this.ocrModel,
     this.isBusiness = false,
+    this.transmittedAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -64,8 +65,8 @@ class Expense {
   /// Annual nominal interest rate in basis points. 600 is 6% a year.
   final int interestBp;
 
-  /// Set when a standing order wrote this rather than you. Such a row has no
-  /// receipt, and the UI says so rather than showing a broken photo.
+  /// Set when this slip was logged from a recurring template. A row with no
+  /// receipt is leftover from when templates used to write themselves.
   final int? recurringRuleId;
 
   /// A readable place, reverse-geocoded from [latitude]/[longitude] but freely
@@ -91,12 +92,16 @@ class Expense {
   /// is never business unless someone said so.
   final bool isBusiness;
 
+  /// When this slip's photo was handed to the accountant. Null means it is
+  /// still waiting, and that is the only thing the accountant tray lists.
+  final DateTime? transmittedAt;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
   String get amountLabel => Money.format(amountMinor);
 
-  bool get isAutoCreated => recurringRuleId != null;
+  bool get isAutoCreated => recurringRuleId != null && !hasReceipt;
 
   bool get isSplit => installments > 1;
 
@@ -137,6 +142,9 @@ class Expense {
         ocrRaw: m['ocr_raw'] as String?,
         ocrModel: m['ocr_model'] as String?,
         isBusiness: (m['is_business'] as int? ?? 0) == 1,
+        transmittedAt: m['transmitted_at'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(m['transmitted_at']! as int),
         createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at']! as int),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(m['updated_at']! as int),
       );
@@ -162,6 +170,7 @@ class Expense {
         'ocr_raw': ocrRaw,
         'ocr_model': ocrModel,
         'is_business': isBusiness ? 1 : 0,
+        'transmitted_at': transmittedAt?.millisecondsSinceEpoch,
         'created_at': createdAt.millisecondsSinceEpoch,
         'updated_at': updatedAt.millisecondsSinceEpoch,
       };
@@ -185,6 +194,7 @@ class Expense {
     String? ocrRaw,
     String? ocrModel,
     bool? isBusiness,
+    DateTime? transmittedAt,
     DateTime? updatedAt,
     /// Clears both the method and the account it mirrored — needed because
     /// "paid with nothing recorded" is a real state the sheet can return to.
@@ -213,6 +223,7 @@ class Expense {
         ocrRaw: ocrRaw ?? this.ocrRaw,
         ocrModel: ocrModel ?? this.ocrModel,
         isBusiness: isBusiness ?? this.isBusiness,
+        transmittedAt: transmittedAt ?? this.transmittedAt,
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now(),
       );

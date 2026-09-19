@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
-import 'package:shopping_list/apps/receipts/data/finance/calendar.dart';
 import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
+import 'package:shopping_list/apps/receipts/data/finance/calendar.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
@@ -15,14 +14,10 @@ import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
-/// Describing something that repeats.
-///
-/// The expense sheet's field vocabulary minus the camera, plus the two things
-/// only a repeating charge has: which day it lands on, and when it stops. An
-/// income rule swaps the category out for the account it arrives in, so a
-/// salary is just a standing order pointing the other way.
-class StandingSheet extends ConsumerStatefulWidget {
-  const StandingSheet({super.key, this.existing});
+/// Editing a recurring payment. The day is when you usually pay it — a note
+/// to yourself, not a trigger. Nothing here writes a slip.
+class RecurringSheet extends ConsumerStatefulWidget {
+  const RecurringSheet({super.key, this.existing});
 
   final RecurringRule? existing;
 
@@ -30,16 +25,16 @@ class StandingSheet extends ConsumerStatefulWidget {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => StandingSheet(existing: existing),
+        builder: (_) => RecurringSheet(existing: existing),
       ),
     );
   }
 
   @override
-  ConsumerState<StandingSheet> createState() => _StandingSheetState();
+  ConsumerState<RecurringSheet> createState() => _RecurringSheetState();
 }
 
-class _StandingSheetState extends ConsumerState<StandingSheet> {
+class _RecurringSheetState extends ConsumerState<RecurringSheet> {
   final _nameController = TextEditingController();
   final _nameFocus = FocusNode();
 
@@ -50,8 +45,6 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
   int? _paymentMethodId;
   int? _accountId;
   bool _isBusiness = false;
-  DateTime _startsOn = Calendar.startOfDay(DateTime.now());
-  DateTime? _endsOn;
 
   bool _keypadOpen = false;
   bool _saving = false;
@@ -72,8 +65,6 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
       _paymentMethodId = existing.paymentMethodId;
       _accountId = existing.accountId;
       _isBusiness = existing.isBusiness;
-      _startsOn = existing.startsOn;
-      _endsOn = existing.endsOn;
     } else {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _nameFocus.requestFocus());
@@ -96,28 +87,9 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
 
   String? get _hint {
     if (_nameController.text.trim().isEmpty) return 'What is it?';
-    if (_amount.agorot == null) return 'How much, every month?';
-    if (_dayOfMonth == null) return 'Which day of the month?';
+    if (_amount.agorot == null) return 'How much, usually?';
+    if (_dayOfMonth == null) return 'Which day do you usually pay?';
     return null;
-  }
-
-  Future<void> _pickDate({required bool start}) async {
-    final initial = start ? _startsOn : (_endsOn ?? DateTime.now());
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(DateTime.now().year + 20),
-      useRootNavigator: false,
-    );
-    if (picked == null) return;
-    setState(() {
-      if (start) {
-        _startsOn = Calendar.startOfDay(picked);
-      } else {
-        _endsOn = Calendar.startOfDay(picked);
-      }
-    });
   }
 
   Future<void> _save() async {
@@ -141,9 +113,6 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
             accountId: _isIncome ? _accountId : null,
             dayOfMonth: _dayOfMonth,
             isBusiness: _isBusiness,
-            startsOn: _startsOn,
-            endsOn: _endsOn,
-            clearEndsOn: _endsOn == null,
           ),
         );
       } else {
@@ -157,8 +126,7 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
             accountId: _isIncome ? _accountId : null,
             dayOfMonth: _dayOfMonth!,
             isBusiness: _isBusiness,
-            startsOn: _startsOn,
-            endsOn: _endsOn,
+            startsOn: Calendar.startOfDay(DateTime.now()),
             createdAt: DateTime.now(),
           ),
         );
@@ -186,22 +154,7 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
           tooltip: 'Discard',
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(_isEditing ? 'Edit standing order' : 'New standing order'),
-        actions: [
-          if (_isEditing)
-            TextButton(
-              onPressed: () async {
-                final rule = widget.existing!;
-                await ref.read(financeControllerProvider).setRuleActive(
-                      rule.id!,
-                      active: !rule.active,
-                    );
-                if (context.mounted) Navigator.of(context).pop();
-              },
-              child: Text(widget.existing!.active ? 'Pause' : 'Resume'),
-            ),
-          const SizedBox(width: Space.sm),
-        ],
+        title: Text(_isEditing ? 'Edit recurring' : 'New recurring'),
       ),
       body: Column(
         children: [
@@ -252,10 +205,10 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
                   ),
                 ),
                 SheetBlock(
-                  label: 'WHICH DAY',
+                  label: 'USUALLY ON',
                   child: DayGrid(
                     selected: _dayOfMonth,
-                    shortMonthNote: 'Short months run it on the last day.',
+                    shortMonthNote: 'A note to yourself. Short months keep the last day.',
                     onSelected: (day) => setState(() {
                       _dayOfMonth = day;
                       _keypadOpen = false;
@@ -350,29 +303,6 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
                     ),
                   ),
                 ],
-                SheetBlock(
-                  label: 'RUNS',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _DateLine(
-                        label: 'From',
-                        value: DateFormat('d MMM yyyy').format(_startsOn),
-                        onTap: () => _pickDate(start: true),
-                      ),
-                      const SizedBox(height: Space.sm),
-                      _DateLine(
-                        label: 'Until',
-                        value: _endsOn == null
-                            ? 'No end'
-                            : DateFormat('d MMM yyyy').format(_endsOn!),
-                        onTap: () => _pickDate(start: false),
-                        onClear:
-                            _endsOn == null ? null : () => setState(() => _endsOn = null),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -384,62 +314,13 @@ class _StandingSheetState extends ConsumerState<StandingSheet> {
             )
           else
             SheetSaveBar(
-              label: _isEditing ? 'Save changes' : 'Add standing order',
+              label: _isEditing ? 'Save changes' : 'Add recurring',
               enabled: _canSave,
               saving: _saving,
               hint: _hint,
               onSave: _save,
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _DateLine extends StatelessWidget {
-  const _DateLine({
-    required this.label,
-    required this.value,
-    required this.onTap,
-    this.onClear,
-  });
-
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-  final VoidCallback? onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.thermal;
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.xs),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 56,
-              child: Text(
-                label,
-                style: Type.caption.copyWith(color: palette.faded),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                value,
-                style: Type.mono.copyWith(color: palette.print, fontSize: 15),
-              ),
-            ),
-            if (onClear != null)
-              IconButton(
-                icon: const AppIcon(SolarIcons.CloseCircle, size: 18),
-                tooltip: 'Clear end date',
-                onPressed: onClear,
-              ),
-          ],
-        ),
       ),
     );
   }

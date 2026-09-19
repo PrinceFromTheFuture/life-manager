@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Receipt scanning and maps talk to Google and OpenRouter over HTTPS. -->
+    <!-- Receipt scanning and maps talk to Google and OpenRouter over HTTPS.
+         The accountant desk is a box on the LAN (or a VPS) on port 5555. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Expenses default to where you are standing when you log them. Both are
@@ -20,7 +21,8 @@
         android:label="Spindle"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:enableOnBackInvokedCallback="true">
+        android:enableOnBackInvokedCallback="true"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -93,7 +95,7 @@
             <data android:mimeType="*/*" />
         </intent>
 
-        <!-- Opening a saved place in Google Maps. -->
+        <!-- Opening a saved place in Google Maps, Waze, or the system chooser. -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />
@@ -108,6 +110,20 @@
             <data android:scheme="https" />
             <data android:host="maps.google.com" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+            <data android:host="waze.com" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="comgooglemaps" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="waze" />
+        </intent>
         <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.waze" />
     </queries>
 </manifest>

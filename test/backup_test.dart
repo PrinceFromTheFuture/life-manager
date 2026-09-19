@@ -12,6 +12,7 @@ import 'package:shopping_list/apps/receipts/data/models/income.dart';
 import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
 import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
+import 'package:shopping_list/apps/calendar/data/calendar_migrations.dart';
 import 'package:shopping_list/apps/tasks/data/tasks_migrations.dart';
 import 'package:shopping_list/apps/tasks/data/tasks_repository.dart';
 import 'package:shopping_list/core/backup/app_backup.dart';
@@ -44,6 +45,7 @@ void main() {
           receiptsMigrations,
           gymMigrations,
           tasksMigrations,
+          calendarMigrations,
         ],
       );
 
@@ -89,6 +91,7 @@ void main() {
     expect(zip.manifest.schemaVersions['groceries'], 1);
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['tasks'], tasksMigrations.latestVersion);
+    expect(zip.manifest.schemaVersions['calendar'], calendarMigrations.latestVersion);
     expect(zip.manifest.keyCount, 0);
 
     final inspected = AppBackup.inspect(zip.bytes);
@@ -263,6 +266,7 @@ void main() {
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
     expect(versions['tasks'], tasksMigrations.latestVersion);
+    expect(versions['calendar'], calendarMigrations.latestVersion);
 
     final gym = GymRepository(restored);
     final rack = await gym.rack();
@@ -324,6 +328,7 @@ void main() {
     expect(zip.manifest.tables['activity'], greaterThanOrEqualTo(1));
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['tasks'], tasksMigrations.latestVersion);
+    expect(zip.manifest.schemaVersions['calendar'], calendarMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['receipts'],
         receiptsMigrations.latestVersion);
 
@@ -370,6 +375,7 @@ void main() {
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
     expect(versions['tasks'], tasksMigrations.latestVersion);
+    expect(versions['calendar'], calendarMigrations.latestVersion);
     expect(versions['core'], 1);
   });
 
@@ -612,6 +618,7 @@ void main() {
     expect(versions['groceries'], 1);
     expect(versions['gym'], 1);
     expect(versions['tasks'], tasksMigrations.latestVersion);
+    expect(versions['calendar'], calendarMigrations.latestVersion);
 
     final slips = await expenses.recent();
     expect(slips, hasLength(12));
@@ -679,8 +686,9 @@ void main() {
   });
 
   test('the latest on-phone copy restores into this build', () async {
-    // Pulled from the device just before this version went on it. Kept out
-    // of git — the zip holds scanning keys and live receipts.
+    // Pulled from Download/Spindle (spindle_2026-09-18_181811.zip) just
+    // before this version went on the phone. Kept out of git — the zip holds
+    // scanning keys and live receipts.
     final zipFile = File(p.join('test', 'fixtures', 'local', 'latest.zip'));
     if (!zipFile.existsSync()) {
       markTestSkipped('no local/latest.zip — pull the on-phone copy first');
@@ -699,12 +707,14 @@ void main() {
       inspected.schemaVersions['receipts'],
       lessThanOrEqualTo(receiptsMigrations.latestVersion),
     );
-    expect(inspected.tables['expenses'], 20);
-    expect(inspected.tables['accounts'], 4);
-    expect(inspected.tables['incomes'], 3);
-    expect(inspected.tables['gym_sets'], 60);
+    expect(inspected.tables['expenses'], 56);
+    expect(inspected.tables['accounts'], 6);
+    expect(inspected.tables['incomes'], 9);
+    expect(inspected.tables['gym_sets'], 194);
     expect(inspected.tables['account_views'], 1);
-    expect(inspected.imageCount, 20);
+    expect(inspected.tables['calendar_locations'], 4);
+    expect(inspected.tables['calendar_blocks'], 2);
+    expect(inspected.imageCount, 55);
     expect(inspected.keyCount, 2);
 
     Map<String, String>? restoredKeys;
@@ -732,9 +742,24 @@ void main() {
     expect(versions['groceries'], groceriesMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
     expect(versions['tasks'], tasksMigrations.latestVersion);
+    expect(versions['calendar'], calendarMigrations.latestVersion);
+
+    // Phone copy is receipts 7; this build rebuilds account_entries for
+    // transfer without dropping existing ledger rows.
+    expect(
+      (await restored.db.rawQuery('SELECT COUNT(*) AS n FROM account_entries'))
+          .single['n'],
+      50,
+    );
+    expect(
+      (await restored.db.rawQuery(
+        "SELECT sql FROM sqlite_master WHERE name = 'account_entries'",
+      )).single['sql'] as String,
+      contains("'transfer'"),
+    );
 
     final slips = await expenses.recent();
-    expect(slips, hasLength(20));
+    expect(slips, hasLength(56));
     for (final slip in slips) {
       if (!slip.hasReceipt) continue;
       expect(
@@ -744,9 +769,9 @@ void main() {
       );
     }
 
-    expect((await expenses.accounts()), hasLength(4));
+    expect((await expenses.accounts()), hasLength(6));
     expect((await expenses.accountViews()), hasLength(1));
-    expect((await expenses.recentIncomes()), hasLength(3));
+    expect((await expenses.recentIncomes()), hasLength(9));
     expect((await groceries.loadHistory()), isNotEmpty);
     expect(await gym.volumeOnDay(DateTime(2026, 8, 22)), greaterThan(0));
   });

@@ -5,16 +5,18 @@ import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_screen.dart';
+import 'package:shopping_list/apps/receipts/ui/accountant_queue_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/accounts_setup_drawer.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/change_chip.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/income_sheet.dart';
+import 'package:shopping_list/apps/receipts/ui/accounts/transfer_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/views_drawer.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_list_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/manage_lookups_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/nav/divider_tabs.dart';
-import 'package:shopping_list/apps/receipts/ui/standing/standing_screen.dart';
-import 'package:shopping_list/apps/receipts/ui/standing/standing_sheet.dart';
+import 'package:shopping_list/apps/receipts/ui/recurring/recurring_screen.dart';
+import 'package:shopping_list/apps/receipts/ui/recurring/recurring_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/stats_screen.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
@@ -37,13 +39,13 @@ class ReceiptsShell extends ConsumerStatefulWidget {
   static const List<String> _labels = [
     'Slips',
     'Accounts',
-    'Standing',
+    'Recurring',
     'Stats',
   ];
 
   static const int slips = 0;
   static const int accounts = 1;
-  static const int standing = 2;
+  static const int recurring = 2;
   static const int stats = 3;
 
   @override
@@ -75,9 +77,8 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
     super.dispose();
   }
 
-  /// Posts the standing orders and statements that came due while the app was
-  /// closed, then says so once. Rows appearing from nowhere is disorienting;
-  /// a print ceremony for something you did not do would be worse.
+  /// Posts the credit statements that came due while the app was closed.
+  /// Recurring payments do not write themselves.
   Future<void> _sweep() async {
     final result = await ref.read(financeControllerProvider).sweep();
     final message = result.message;
@@ -109,6 +110,15 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
             tooltip: 'Export month',
             icon: const AppIcon(SolarIcons.Export),
             onPressed: () => exportSelectedMonth(context, ref),
+          ),
+          IconButton(
+            tooltip: 'Accountant',
+            icon: const AppIcon(SolarIcons.Plain),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const AccountantQueueScreen(),
+              ),
+            ),
           ),
           IconButton(
             tooltip: 'Categories',
@@ -158,7 +168,7 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
 
   Widget _body(int index) => switch (index) {
         ReceiptsShell.accounts => const AccountsSection(),
-        ReceiptsShell.standing => const StandingSection(),
+        ReceiptsShell.recurring => const RecurringSection(),
         ReceiptsShell.stats => const StatsSection(),
         _ => const SlipsSection(),
       };
@@ -174,7 +184,7 @@ class _Summary extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (index) {
       ReceiptsShell.accounts => const _AccountsSummary(),
-      ReceiptsShell.standing => const _StandingSummary(),
+      ReceiptsShell.recurring => const _RecurringSummary(),
       ReceiptsShell.stats => const StatsSummary(),
       _ => const MonthSelector(),
     };
@@ -276,23 +286,23 @@ class _AccountsSummary extends ConsumerWidget {
   }
 }
 
-/// What leaves every month without you touching anything.
-class _StandingSummary extends ConsumerWidget {
-  const _StandingSummary();
+/// What you usually pay each month. Not a ledger total — a reminder.
+class _RecurringSummary extends ConsumerWidget {
+  const _RecurringSummary();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
     final total = ref.watch(recurringMonthlyTotalProvider).valueOrNull;
     final rules = ref.watch(recurringRulesProvider).valueOrNull;
-    final live = rules?.where((r) => r.active).length ?? 0;
+    final live = rules?.where((r) => !r.isIncome).length ?? 0;
 
     return _SummaryLine(
       eyebrow: 'EVERY MONTH',
       headline: total == null ? '—' : Money.format(total),
       detail: live == 0
           ? null
-          : 'across $live ${live == 1 ? 'order' : 'orders'}',
+          : 'across $live ${live == 1 ? 'payment' : 'payments'}',
       ink: palette.print,
     );
   }
@@ -353,14 +363,14 @@ class _ActionBar extends StatelessWidget {
 
     final (label, icon, onPressed) = switch (index) {
       ReceiptsShell.accounts => (
-          'Record income',
+          'Income',
           SolarIcons.ArrowLeftDown,
           () => IncomeSheet.open(context),
         ),
-      ReceiptsShell.standing => (
-          'Add standing order',
+      ReceiptsShell.recurring => (
+          'Add recurring',
           SolarIcons.Repeat,
-          () => StandingSheet.open(context),
+          () => RecurringSheet.open(context),
         ),
       ReceiptsShell.stats => (null, null, null),
       _ => (
@@ -394,20 +404,30 @@ class _ActionBar extends StatelessWidget {
                 InkPlate(
                   primary: false,
                   size: const Size(Plate.height, Plate.height),
-                  semanticLabel: 'Add account',
-                  onPressed: () => openAddAccountDrawer(context),
-                  child: AppIcon(SolarIcons.SafeCircle, size: 22, color: palette.print),
+                  semanticLabel: 'New account or payment method',
+                  onPressed: () => openNewFinanceDrawer(context),
+                  child: AppIcon(
+                    SolarIcons.AddCircle,
+                    size: 22,
+                    color: palette.print,
+                  ),
                 ),
                 const SizedBox(width: Space.sm),
-                InkPlate(
-                  primary: false,
-                  size: const Size(Plate.height, Plate.height),
-                  semanticLabel: 'Add payment method',
-                  onPressed: () => openAddPaymentMethodDrawer(context),
-                  child: AppIcon(SolarIcons.Card, size: 22, color: palette.print),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => IncomeSheet.open(context),
+                    icon: const AppIcon(SolarIcons.ArrowLeftDown, size: 18),
+                    label: const Text('Income'),
+                  ),
                 ),
                 const SizedBox(width: Space.sm),
-                Expanded(child: plate),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => TransferSheet.open(context),
+                    icon: const AppIcon(SolarIcons.Restart, size: 18),
+                    label: const Text('Transfer'),
+                  ),
+                ),
               ],
             )
           : SizedBox(width: double.infinity, child: plate),

@@ -539,4 +539,35 @@ void main() {
       expect(thisMonth.personalMinor, 2500);
     });
   });
+
+  group('accountant tray', () {
+    test('lists business photos that have not been handed over', () async {
+      await repo.create(
+        draft: draft().copyWith(isBusiness: true),
+        receiptSourcePath: receiptFile('biz.jpg').path,
+      );
+      await repo.create(
+        draft: draft(merchant: 'Milk').copyWith(isBusiness: false),
+        receiptSourcePath: receiptFile('per.jpg').path,
+      );
+
+      final waiting = await repo.pendingAccountant();
+      expect(waiting, hasLength(1));
+      expect(waiting.single.merchant, 'Rami Levy');
+      expect(waiting.single.transmittedAt, isNull);
+
+      await repo.markTransmitted([waiting.single.id!]);
+      expect(await repo.pendingAccountant(), isEmpty);
+      expect((await repo.byId(waiting.single.id!))!.transmittedAt, isNotNull);
+
+      final handed = await repo.handedAccountant();
+      expect(handed, hasLength(1));
+      expect(handed.single.merchant, 'Rami Levy');
+    });
+
+    test('a business slip without a photo stays off the tray', () async {
+      await repo.createWithoutReceipt(draft().copyWith(isBusiness: true));
+      expect(await repo.pendingAccountant(), isEmpty);
+    });
+  });
 }

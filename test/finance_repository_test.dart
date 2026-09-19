@@ -114,6 +114,20 @@ void main() {
       expect(standing.owedMinor, 50000);
     });
 
+    test('the open cycle queue lists only that card\'s waiting charges',
+        () async {
+      await spend(amountMinor: 50000, method: card, on: DateTime(2026, 8, 12));
+      await spend(amountMinor: 1000, method: direct, on: DateTime(2026, 8, 12));
+      final cycle = StatementCycles.open(DateTime(2026, 8, 12), 10);
+      final waiting = await repo.chargedToMethod(
+        paymentMethodId: card.id!,
+        from: cycle.start,
+        to: cycle.end,
+      );
+      expect(waiting, hasLength(1));
+      expect(waiting.single.amountMinor, 50000);
+    });
+
     test('the account is mirrored from the method it was paid with', () async {
       final saved = await spend(amountMinor: 1000, method: card);
       expect(saved.accountId, account.id);
@@ -131,6 +145,32 @@ void main() {
       );
 
       expect(await balance(), 1000000 + 2130000);
+    });
+
+    test('a transfer leaves one account and arrives in the other', () async {
+      final cash = await repo.addAccount('Cash', kind: 'cash');
+      await repo.transfer(
+        fromAccountId: account.id!,
+        toAccountId: cash.id!,
+        amountMinor: 50000,
+        occurredAt: DateTime(2026, 8, 12),
+      );
+
+      expect(await balance(), 1000000 - 50000);
+      final cashBalance =
+          (await repo.standings(now: DateTime(2026, 8, 12)))
+              .firstWhere((s) => s.account.id == cash.id)
+              .balanceMinor;
+      expect(cashBalance, 50000);
+
+      final fromLines = await repo.ledgerFor(account.id!);
+      final toLines = await repo.ledgerFor(cash.id!);
+      expect(fromLines.single.entry.kind, LedgerKind.transfer);
+      expect(fromLines.single.entry.amountMinor, -50000);
+      expect(fromLines.single.entry.note, 'To Cash');
+      expect(toLines.single.entry.kind, LedgerKind.transfer);
+      expect(toLines.single.entry.amountMinor, 50000);
+      expect(toLines.single.entry.note, 'From Bank Leumi');
     });
   });
 
@@ -283,44 +323,18 @@ void main() {
           ),
         );
 
-    test('posts every month a rule was due for, once each', () async {
+    test('a recurring rule never writes a slip on its own', () async {
       await rent();
       final result = await RecurringMaterializer(repo).run(
         now: DateTime(2026, 8, 19),
       );
 
-      expect(result.ordersPosted, 3);
-      expect(result.message, '3 standing orders posted.');
-      final posted = await repo.recent();
-      expect(posted, hasLength(3));
-      expect(posted.every((e) => e.isAutoCreated), isTrue);
-      expect(posted.every((e) => !e.hasReceipt), isTrue);
-    });
-
-    test('a second sweep on the same day writes nothing', () async {
-      await rent();
-      await RecurringMaterializer(repo).run(now: DateTime(2026, 8, 19));
-      final again = await RecurringMaterializer(repo).run(
-        now: DateTime(2026, 8, 19),
-      );
-
-      expect(again.isEmpty, isTrue);
-      expect(again.message, isNull);
-      expect(await repo.recent(), hasLength(3));
-    });
-
-    test('a paused rule posts nothing', () async {
-      final rule = await rent();
-      await repo.setRecurringActive(rule.id!, active: false);
-
-      final result = await RecurringMaterializer(repo).run(
-        now: DateTime(2026, 8, 19),
-      );
-      expect(result.ordersPosted, 0);
+      expect(result.isEmpty, isTrue);
+      expect(result.message, isNull);
       expect(await repo.recent(), isEmpty);
     });
 
-    test('an income rule lands as income, not as an expense', () async {
+    test('an income rule never lands as income on its own', () async {
       await repo.addRecurringRule(
         RecurringRule(
           kind: RecurringKind.income,
@@ -336,8 +350,35 @@ void main() {
       await RecurringMaterializer(repo).run(now: DateTime(2026, 8, 19));
 
       expect(await repo.recent(), isEmpty);
-      expect((await repo.recentIncomes()).single.sourceName, 'Salary');
-      expect(await balance(), 1000000 + 2130000);
+      expect(await repo.recentIncomes(), isEmpty);
+      expect(await balance(), 1000000);
+    });
+
+    test('a slip logged from a rule is linked for that calendar month',
+        () async {
+      final rule = await rent();
+      await repo.createWithoutReceipt(
+        Expense(
+          occurredAt: DateTime(2026, 8, 12),
+          amountMinor: 320000,
+          merchant: 'Rent',
+          categoryId: null,
+          paymentMethodId: direct.id,
+          recurringRuleId: rule.id,
+          receiptPath: '',
+          createdAt: DateTime(2026, 8, 12),
+          updatedAt: DateTime(2026, 8, 12),
+        ),
+      );
+
+      expect(
+        await repo.recurringLinkedInMonth(now: DateTime(2026, 8, 19)),
+        {rule.id},
+      );
+      expect(
+        await repo.recurringLinkedInMonth(now: DateTime(2026, 9, 1)),
+        isEmpty,
+      );
     });
 
     test('closed credit cycles settle as part of the sweep', () async {

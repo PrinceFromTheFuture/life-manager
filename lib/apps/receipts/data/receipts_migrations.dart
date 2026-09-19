@@ -406,5 +406,70 @@ const ModuleMigrations receiptsMigrations = ModuleMigrations(
         ''',
       ],
     ),
+
+    // Transfers are a real ledger kind, not an adjustment with a note. SQLite
+    // cannot widen a CHECK in place, so the table is rebuilt with the new
+    // value and every existing line copied across.
+    Migration(
+      version: 8,
+      statements: [
+        '''
+        CREATE TABLE account_entries_new (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          account_id   INTEGER NOT NULL
+                               REFERENCES accounts(id) ON DELETE CASCADE,
+          occurred_at  INTEGER NOT NULL,
+          amount_minor INTEGER NOT NULL,
+          kind         TEXT    NOT NULL
+                               CHECK (kind IN ('opening', 'expense', 'income',
+                                               'settlement', 'reversal',
+                                               'adjustment', 'transfer')),
+          ref_table    TEXT,
+          ref_id       INTEGER,
+          reverses_id  INTEGER,
+          note         TEXT,
+          created_at   INTEGER NOT NULL
+        )
+        ''',
+        '''
+        INSERT INTO account_entries_new
+          (id, account_id, occurred_at, amount_minor, kind, ref_table, ref_id,
+           reverses_id, note, created_at)
+        SELECT id, account_id, occurred_at, amount_minor, kind, ref_table,
+               ref_id, reverses_id, note, created_at
+        FROM account_entries
+        ''',
+        'DROP TABLE account_entries',
+        'ALTER TABLE account_entries_new RENAME TO account_entries',
+        '''
+        CREATE INDEX IF NOT EXISTS idx_account_entries_account
+          ON account_entries(account_id, occurred_at, id)
+        ''',
+        '''
+        CREATE INDEX IF NOT EXISTS idx_account_entries_ref
+          ON account_entries(ref_table, ref_id, kind)
+        ''',
+        '''
+        DELETE FROM sqlite_sequence
+        WHERE name IN ('account_entries', 'account_entries_new')
+        ''',
+        '''
+        INSERT INTO sqlite_sequence (name, seq)
+        SELECT 'account_entries', COALESCE(MAX(id), 0) FROM account_entries
+        ''',
+      ],
+    ),
+
+    // When a business slip has been handed to the accountant, it leaves the
+    // tray. The stamp is a time so a later question of "did this go" is a
+    // date, not a boolean we cannot talk about.
+    Migration(
+      version: 9,
+      statements: [
+        '''
+        ALTER TABLE expenses ADD COLUMN transmitted_at INTEGER
+        ''',
+      ],
+    ),
   ],
 );

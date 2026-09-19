@@ -1,12 +1,9 @@
 /// What a rule writes when it runs.
 enum RecurringKind { expense, income }
 
-/// A standing order: something that happens on the same day every month
-/// whether or not you remember it.
-///
-/// The shape is an expense with the situational fields removed — no photo, no
-/// GPS, no scan provenance — plus the two facts an expense never has: which day
-/// of the month it lands on, and how far the sweep has already got.
+/// A recurring payment: something you usually pay (or receive) on the same
+/// day every month. It does not write itself into the ledger — tapping it
+/// opens a prefilled slip, and that is the only way it becomes a real row.
 class RecurringRule {
   const RecurringRule({
     this.id,
@@ -49,13 +46,11 @@ class RecurringRule {
 
   final DateTime? endsOn;
 
-  /// The high-water mark of the sweep. Everything about idempotency hangs off
-  /// this: the materializer only looks forward from here, so running it twice
-  /// in one day writes nothing the second time.
+  /// The high-water mark of the old auto-post sweep. Kept so existing rows
+  /// round-trip; nothing writes it any more.
   final DateTime? lastRunOn;
 
-  /// A paused rule keeps its history and stops writing. Deleting would lose
-  /// the link from the slips it already posted.
+  /// Kept from the old pause control. Every template on the page is live.
   final bool active;
 
   final DateTime createdAt;

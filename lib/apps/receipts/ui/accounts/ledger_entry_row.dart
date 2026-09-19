@@ -99,6 +99,7 @@ class LedgerEntryRow extends StatelessWidget {
       LedgerKind.income => note.isEmpty ? 'Income' : note,
       LedgerKind.expense => note.isEmpty ? 'Expense' : note,
       LedgerKind.settlement => note.isEmpty ? 'Statement' : note,
+      LedgerKind.transfer => note.isEmpty ? 'Transfer' : note,
     };
   }
 
@@ -111,6 +112,7 @@ class LedgerEntryRow extends StatelessWidget {
       LedgerKind.reversal => 'Reversal',
       LedgerKind.opening => 'Opening',
       LedgerKind.adjustment => 'Adjustment',
+      LedgerKind.transfer => 'Transfer',
     };
     return '$kind · $date';
   }

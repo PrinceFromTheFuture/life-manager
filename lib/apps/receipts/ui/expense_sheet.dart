@@ -10,6 +10,7 @@ import 'package:shopping_list/apps/receipts/data/finance/installment_plan.dart';
 import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense.dart';
 import 'package:shopping_list/apps/receipts/data/models/expense_category.dart';
+import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
 import 'package:shopping_list/apps/receipts/data/ocr/receipt_scanner.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
@@ -36,17 +37,25 @@ import 'package:shopping_list/core/design/widgets/app_icon.dart';
 /// lost by not wanting the camera — but the common path is: open, snap, confirm
 /// the amount, save.
 class ExpenseSheet extends ConsumerStatefulWidget {
-  const ExpenseSheet({super.key, this.existing});
+  const ExpenseSheet({super.key, this.existing, this.fromRule});
 
   /// When set, the sheet edits rather than creates. Same layout, same words —
   /// correcting an expense should not feel like a different feature.
   final Expense? existing;
 
-  static Future<void> open(BuildContext context, {Expense? existing}) {
+  /// When set, a new slip starts from this recurring template: category,
+  /// amount, paid-with, name. The date stays now.
+  final RecurringRule? fromRule;
+
+  static Future<void> open(
+    BuildContext context, {
+    Expense? existing,
+    RecurringRule? fromRule,
+  }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => ExpenseSheet(existing: existing),
+        builder: (_) => ExpenseSheet(existing: existing, fromRule: fromRule),
       ),
     );
   }
@@ -151,6 +160,18 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       _isBusiness = existing.isBusiness;
       _locationSettled = true;
     } else {
+      final fromRule = widget.fromRule;
+      if (fromRule != null) {
+        _amount = AmountEntry.fromAgorot(fromRule.amountMinor);
+        _merchantController.text = fromRule.name;
+        _noteController.text = fromRule.note ?? '';
+        _showNote = (fromRule.note ?? '').isNotEmpty;
+        _categoryId = fromRule.categoryId;
+        _paymentMethodId = fromRule.paymentMethodId;
+        _isBusiness = fromRule.isBusiness;
+        _categoryChosenByHand = fromRule.categoryId != null;
+        _methodChosenByHand = fromRule.paymentMethodId != null;
+      }
       // Straight to the camera. The receipt is required, so there is nothing
       // useful to do on this screen until one exists. Location waits until
       // after the picker closes — otherwise the two permission dialogs stack
@@ -284,7 +305,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
         _noteController.text = parsed.description!.trim();
         _showNote = true;
       }
-      if (parsed.categoryGuess != null) {
+      if (parsed.categoryGuess != null && widget.fromRule == null) {
         final normalized = parsed.categoryGuess!.trim().toLowerCase();
         for (final c in categories) {
           if (c.name.toLowerCase() == normalized) {
@@ -389,6 +410,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
             paymentMethodId: _paymentMethodId,
             installments: _installments,
             interestBp: _interestBp,
+            recurringRuleId: widget.fromRule?.id,
             locationLabel: location.isEmpty ? null : location,
             latitude: _latitude,
             longitude: _longitude,
@@ -1289,7 +1311,7 @@ class _ReceiptStrip extends ConsumerWidget {
           Text('RECEIPT', style: Type.eyebrow.copyWith(color: palette.faded)),
           const SizedBox(height: Space.xs),
           Text(
-            'No receipt. A standing order wrote this one.',
+            'No receipt on this one.',
             style: Type.body.copyWith(color: palette.faded),
           ),
           const SizedBox(height: Space.sm),

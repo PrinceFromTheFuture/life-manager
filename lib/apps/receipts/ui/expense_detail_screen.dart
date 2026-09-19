@@ -160,7 +160,7 @@ class _Detail extends ConsumerWidget {
             ).caption,
           ),
         if (expense.isAutoCreated)
-          const _Field(label: 'SOURCE', value: 'Written by a standing order'),
+          const _Field(label: 'SOURCE', value: 'Written automatically'),
         if ((expense.description ?? '').isNotEmpty)
           _Field(label: 'NOTE', value: expense.description!),
         if (expense.source == ExpenseSource.scanned)
@@ -367,7 +367,7 @@ class _NoReceiptState extends ConsumerState<NoReceipt> {
       children: [
         Text(
           expense.isAutoCreated
-              ? 'No receipt. A standing order wrote this one on the '
+              ? 'No receipt. This one was written automatically on the '
                   '${_ordinal(expense.occurredAt.day)}.'
               : 'No receipt on this one.',
           style: Type.body.copyWith(color: palette.faded),

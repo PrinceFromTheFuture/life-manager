@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/calendar/calendar_app.dart';
+import 'package:shopping_list/apps/calendar/state/providers.dart';
+import 'package:shopping_list/apps/calendar/ui/navigate_launch.dart';
 import 'package:shopping_list/apps/receipts/receipts_app.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/core/activity/providers.dart';
@@ -13,6 +16,7 @@ import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/hub/account_screen.dart';
 import 'package:shopping_list/hub/activity_feed.dart';
 import 'package:shopping_list/hub/launcher.dart';
+import 'package:shopping_list/hub/today_rail.dart';
 import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The shell's home screen.
@@ -31,10 +35,11 @@ class HubScreen extends ConsumerWidget {
     final registry = ref.watch(registryProvider);
     final feed = ref.watch(activityFeedProvider);
     const receipts = ReceiptsApp();
+    const calendar = CalendarApp();
     final brightness = Theme.of(context).brightness;
     final receiptsInk = receipts.ink.of(brightness);
-    final onReceiptsInk =
-        brightness == Brightness.light ? palette.paper : palette.print;
+    final calendarInk = calendar.ink.of(brightness);
+    final onInk = brightness == Brightness.light ? palette.paper : palette.print;
 
     void openAccount() => Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
@@ -44,6 +49,13 @@ class HubScreen extends ConsumerWidget {
           context,
           receipts,
           initialScreen: (_) => const ExpenseSheet(),
+          fullscreenDialog: true,
+        );
+
+    void navigate() => openMiniApp(
+          context,
+          calendar,
+          initialScreen: (_) => const NavigateLaunch(),
           fullscreenDialog: true,
         );
 
@@ -84,11 +96,15 @@ class HubScreen extends ConsumerWidget {
       body: RefreshIndicator(
         color: palette.print,
         backgroundColor: palette.paperShade,
-        onRefresh: () async => ref.invalidate(activityFeedProvider),
+        onRefresh: () async {
+          ref.invalidate(activityFeedProvider);
+          ref.invalidate(todayTicketsProvider);
+        },
         child: ListView(
-          padding: const EdgeInsets.only(bottom: Space.xxl),
+          padding: const EdgeInsets.only(bottom: Space.lg),
           children: [
             Launcher(apps: registry.apps),
+            const TodayRail(),
             feed.when(
               loading: () => const Padding(
                 padding: EdgeInsets.all(Space.xxl),
@@ -107,24 +123,93 @@ class HubScreen extends ConsumerWidget {
           ],
         ),
       ),
-      // Photographing a receipt cannot wait for you to open Receipts. This is
-      // that app's capture, on the hub, in that app's ink — one tap from the
-      // pavement after paying. It says what it does; a camera-only mark would
-      // have to be learned.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: addExpense,
-        tooltip: 'Add expense',
-        backgroundColor: receiptsInk,
-        foregroundColor: onReceiptsInk,
-        icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
-        label: const Text('Add expense'),
+      // Two first-class hub actions, each in its app's ink: go somewhere,
+      // or photograph a receipt. Same plate language as Receipts' accounts bar.
+      bottomNavigationBar: Material(
+        color: palette.paper,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            Space.lg,
+            Space.md,
+            Space.lg,
+            Space.md + MediaQuery.paddingOf(context).bottom,
+          ),
+          child: Row(
+            children: [
+              _HubPlate(
+                color: calendarInk,
+                onColor: onInk,
+                semanticLabel: 'Navigate',
+                onPressed: navigate,
+                child: AppIcon(SolarIcons.MapPoint, size: 22, color: onInk),
+              ),
+              const SizedBox(width: Space.sm),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: addExpense,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: receiptsInk,
+                    foregroundColor: onInk,
+                    minimumSize: const Size(0, Plate.height),
+                    shape: InkPlateBorder(
+                      borderRadius: Radii.key,
+                      side: BorderSide(
+                        color: Color.lerp(receiptsInk, palette.print, 0.38)!,
+                        width: 1.5,
+                      ),
+                      insetColor: Plate.inset(onInk),
+                    ),
+                  ),
+                  icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
+                  label: const Text('Add expense'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HubPlate extends StatelessWidget {
+  const _HubPlate({
+    required this.color,
+    required this.onColor,
+    required this.semanticLabel,
+    required this.onPressed,
+    required this.child,
+  });
+
+  final Color color;
+  final Color onColor;
+  final String semanticLabel;
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        color: color,
         shape: InkPlateBorder(
           borderRadius: Radii.key,
           side: BorderSide(
-            color: Color.lerp(receiptsInk, palette.print, 0.38)!,
+            color: Color.lerp(color, context.thermal.print, 0.38)!,
             width: 1.5,
           ),
-          insetColor: Plate.inset(onReceiptsInk),
+          insetColor: Plate.inset(onColor),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: SizedBox(
+            width: Plate.height,
+            height: Plate.height,
+            child: Center(child: child),
+          ),
         ),
       ),
     );

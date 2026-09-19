@@ -100,7 +100,26 @@ class ExpenseRepository {
   Future<List<Expense>> between(DateTime from, DateTime to) =>
       expenses.between(from, to);
 
+  Future<List<Expense>> chargedToMethod({
+    required int paymentMethodId,
+    required DateTime from,
+    required DateTime to,
+  }) =>
+      expenses.forMethodBetween(
+        paymentMethodId: paymentMethodId,
+        from: from,
+        to: to,
+      );
+
   Future<Expense?> byId(int id) => expenses.byId(id);
+
+  /// Business photos still waiting to be handed to the accountant.
+  Future<List<Expense>> pendingAccountant() => expenses.pendingAccountant();
+
+  Future<List<Expense>> handedAccountant() => expenses.handedAccountant();
+
+  Future<void> markTransmitted(Iterable<int> ids, {DateTime? at}) =>
+      expenses.markTransmitted(ids, at ?? DateTime.now());
 
   Future<Income?> incomeById(int id) => incomes.byId(id);
 
@@ -485,6 +504,86 @@ class ExpenseRepository {
     });
   }
 
+  /// Moves money from one account to another. Not income, not spending — both
+  /// legs are written in one transaction so a crash cannot leave the money in
+  /// neither place.
+  Future<void> transfer({
+    required int fromAccountId,
+    required int toAccountId,
+    required int amountMinor,
+    required DateTime occurredAt,
+    String? note,
+  }) async {
+    if (fromAccountId == toAccountId) {
+      throw ArgumentError('A transfer has to change accounts.');
+    }
+    if (amountMinor <= 0) {
+      throw ArgumentError('A transfer has to move some money.');
+    }
+
+    await _db.transaction((txn) async {
+      final names = await _accountNames(txn, {fromAccountId, toAccountId});
+      final fromName = names[fromAccountId] ?? 'Account';
+      final toName = names[toAccountId] ?? 'Account';
+      final extra = (note ?? '').trim();
+      final now = DateTime.now();
+      final dao = LedgerDao(txn);
+
+      await dao.append(
+        AccountEntry(
+          accountId: fromAccountId,
+          occurredAt: occurredAt,
+          amountMinor: -amountMinor,
+          kind: LedgerKind.transfer,
+          refTable: 'accounts',
+          refId: toAccountId,
+          note: extra.isEmpty ? 'To $toName' : 'To $toName · $extra',
+          createdAt: now,
+        ),
+      );
+      await dao.append(
+        AccountEntry(
+          accountId: toAccountId,
+          occurredAt: occurredAt,
+          amountMinor: amountMinor,
+          kind: LedgerKind.transfer,
+          refTable: 'accounts',
+          refId: fromAccountId,
+          note: extra.isEmpty ? 'From $fromName' : 'From $fromName · $extra',
+          createdAt: now,
+        ),
+      );
+
+      await ActivityWriter(txn).write(
+        ActivityEntry(
+          appId: ReceiptActivity.appId,
+          kind: ReceiptActivity.transferAdded,
+          title: '$fromName → $toName',
+          subtitle: extra.isEmpty ? 'Transfer' : extra,
+          amountMinor: amountMinor,
+          occurredAt: occurredAt,
+        ),
+      );
+    });
+  }
+
+  Future<Map<int, String>> _accountNames(
+    DatabaseExecutor txn,
+    Set<int> ids,
+  ) async {
+    if (ids.isEmpty) return const {};
+    final marks = List.filled(ids.length, '?').join(', ');
+    final rows = await txn.query(
+      'accounts',
+      columns: ['id', 'name'],
+      where: 'id IN ($marks)',
+      whereArgs: ids.toList(),
+    );
+    return {
+      for (final row in rows) row['id']! as int: row['name']! as String,
+    };
+  }
+
   Future<void> deleteIncome(int id) async {
     await _db.transaction((txn) async {
       final dao = LedgerDao(txn);
@@ -504,7 +603,7 @@ class ExpenseRepository {
     });
   }
 
-  // -------------------------------------------------------- standing orders
+  // -------------------------------------------------------- recurring
 
   Future<List<RecurringRule>> recurringRules() => recurring.all();
 
@@ -520,6 +619,13 @@ class ExpenseRepository {
   Future<void> deleteRecurringRule(int id) => recurring.delete(id);
 
   Future<int> recurringMonthlyTotal() => recurring.monthlyTotal();
+
+  Future<Set<int>> recurringLinkedInMonth({DateTime? now}) {
+    final at = now ?? DateTime.now();
+    final from = DateTime(at.year, at.month);
+    final to = DateTime(at.year, at.month + 1);
+    return recurring.linkedRuleIdsBetween(from, to);
+  }
 
   /// Posts one credit statement to the account it draws on.
   ///

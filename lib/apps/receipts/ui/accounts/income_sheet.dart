@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/income.dart';
+import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
 import 'package:shopping_list/apps/receipts/ui/widgets/sheet_parts.dart';
@@ -23,13 +24,15 @@ import 'package:shopping_list/core/design/widgets/app_icon.dart';
 /// facts and a keypad that is already open, because there is no camera to open
 /// first.
 class IncomeSheet extends ConsumerStatefulWidget {
-  const IncomeSheet({super.key});
+  const IncomeSheet({super.key, this.fromRule});
 
-  static Future<void> open(BuildContext context) {
+  final RecurringRule? fromRule;
+
+  static Future<void> open(BuildContext context, {RecurringRule? fromRule}) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => const IncomeSheet(),
+        builder: (_) => IncomeSheet(fromRule: fromRule),
       ),
     );
   }
@@ -52,9 +55,16 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
   @override
   void initState() {
     super.initState();
+    final fromRule = widget.fromRule;
+    if (fromRule != null) {
+      _sourceController.text = fromRule.name;
+      _amount = AmountEntry.fromAgorot(fromRule.amountMinor);
+      _accountId = fromRule.accountId;
+      _keypadOpen = false;
+    }
     _sourceController.addListener(_onSourceChanged);
     unawaited(_loadSuggestions(''));
-    unawaited(_preselectAccount());
+    if (fromRule == null) unawaited(_preselectAccount());
   }
 
   @override
@@ -134,6 +144,8 @@ class _IncomeSheetState extends ConsumerState<IncomeSheet> {
               amountMinor: amount,
               sourceName: _sourceController.text.trim(),
               accountId: _accountId,
+              note: widget.fromRule?.note,
+              recurringRuleId: widget.fromRule?.id,
               createdAt: DateTime.now(),
             ),
           );

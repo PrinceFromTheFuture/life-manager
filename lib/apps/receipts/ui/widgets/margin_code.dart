@@ -24,7 +24,7 @@ class MarginCode extends StatelessWidget {
   String get _text => _count == null ? 'S/O' : 'x$_count';
 
   String get _spoken =>
-      _count == null ? 'Standing order' : '$_count payments';
+      _count == null ? 'Recurring' : '$_count payments';
 
   @override
   Widget build(BuildContext context) {

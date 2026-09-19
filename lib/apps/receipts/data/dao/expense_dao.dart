@@ -33,6 +33,26 @@ class ExpenseDao {
     return rows.map(Expense.fromMap).toList();
   }
 
+  /// Charges on one payment method in `[from, to)`, newest first. The credit
+  /// cycle queue is this query for the open statement window.
+  Future<List<Expense>> forMethodBetween({
+    required int paymentMethodId,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final rows = await _db.query(
+      'expenses',
+      where: 'payment_method_id = ? AND occurred_at >= ? AND occurred_at < ?',
+      whereArgs: [
+        paymentMethodId,
+        from.millisecondsSinceEpoch,
+        to.millisecondsSinceEpoch,
+      ],
+      orderBy: 'occurred_at DESC, id DESC',
+    );
+    return rows.map(Expense.fromMap).toList();
+  }
+
   Future<Expense?> byId(int id) async {
     final rows =
         await _db.query('expenses', where: 'id = ?', whereArgs: [id], limit: 1);
@@ -53,6 +73,44 @@ class ExpenseDao {
 
   Future<void> delete(int id) =>
       _db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+
+  /// Business slips with a photo that have not yet been handed to the
+  /// accountant. All time, newest first — the tray is a pile, not a month.
+  Future<List<Expense>> pendingAccountant() async {
+    final rows = await _db.query(
+      'expenses',
+      where:
+          "is_business = 1 AND transmitted_at IS NULL AND receipt_path IS NOT NULL AND receipt_path != ''",
+      orderBy: 'occurred_at DESC, id DESC',
+    );
+    return rows.map(Expense.fromMap).toList();
+  }
+
+  /// Business photos already handed over, most recently sent first — so a
+  /// slip can be found and sent again without leaving the tray.
+  Future<List<Expense>> handedAccountant() async {
+    final rows = await _db.query(
+      'expenses',
+      where:
+          "is_business = 1 AND transmitted_at IS NOT NULL AND receipt_path IS NOT NULL AND receipt_path != ''",
+      orderBy: 'transmitted_at DESC, id DESC',
+    );
+    return rows.map(Expense.fromMap).toList();
+  }
+
+  Future<void> markTransmitted(Iterable<int> ids, DateTime at) async {
+    final list = ids.toList();
+    if (list.isEmpty) return;
+    final placeholders = List.filled(list.length, '?').join(',');
+    await _db.rawUpdate(
+      'UPDATE expenses SET transmitted_at = ?, updated_at = ? WHERE id IN ($placeholders)',
+      [
+        at.millisecondsSinceEpoch,
+        at.millisecondsSinceEpoch,
+        ...list,
+      ],
+    );
+  }
 
   /// Total spent between two instants, for a period summary.
   Future<int> totalBetween(DateTime from, DateTime to) async {

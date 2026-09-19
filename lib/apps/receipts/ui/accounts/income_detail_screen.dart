@@ -71,7 +71,7 @@ class IncomeDetailScreen extends ConsumerWidget {
                 _Row(label: 'NOTE', value: income.note!.trim()),
               if (income.isAutoCreated)
                 const _Row(
-                    label: 'HOW', value: 'A standing order wrote this.'),
+                    label: 'HOW', value: 'Linked to a recurring payment.'),
             ],
           );
         },

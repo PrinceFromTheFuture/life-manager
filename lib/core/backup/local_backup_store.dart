@@ -1,23 +1,24 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:shopping_list/core/backup/app_backup.dart';
+import 'package:shopping_list/core/backup/backup_copy_store.dart';
 
-/// On-phone copies, in the app's own documents directory.
+/// Copies in the app's own documents directory.
 ///
-/// These are not shared off the device. They sit next to receipt photos so a
-/// reinstall still loses them — that is the same rule as everything else
-/// Spindle holds — but a crash or a bad edit can be rolled back without
-/// leaving the phone.
-class LocalBackupStore {
+/// The fallback store, not the first choice: this folder is deleted with the
+/// app, so copies here do not survive an uninstall or an installer that
+/// replaces rather than updates. [SharedBackupStore] is what runs on a phone;
+/// this is what everything else — older Android, tests — gets.
+class LocalBackupStore implements BackupCopyStore {
   LocalBackupStore({Directory? root}) : _rootOverride = root;
 
   final Directory? _rootOverride;
 
   static const String folder = 'backups';
-  static const Duration interval = Duration(minutes: 5);
 
   Future<Directory> directory() async {
     final root = _rootOverride ?? await getApplicationDocumentsDirectory();
@@ -26,36 +27,37 @@ class LocalBackupStore {
     return dir;
   }
 
-  /// Newest first, by when the file was written.
-  Future<List<File>> copies() async {
+  @override
+  Future<List<BackupCopy>> copies() async {
     final dir = await directory();
     final files = [
       await for (final entity in dir.list())
         if (entity is File && entity.path.endsWith('.zip')) entity,
     ];
-    final stamped = <({File file, DateTime at})>[];
+    final stamped = <BackupCopy>[];
     for (final file in files) {
-      stamped.add((file: file, at: await file.lastModified()));
+      stamped.add(
+        BackupCopy(
+          id: file.path,
+          name: p.basename(file.path),
+          at: await file.lastModified(),
+        ),
+      );
     }
     stamped.sort((a, b) => b.at.compareTo(a.at));
-    return [for (final row in stamped) row.file];
+    return stamped;
   }
 
+  @override
   Future<DateTime?> lastAt() async {
-    final files = await copies();
-    if (files.isEmpty) return null;
-    return files.first.lastModified();
+    final all = await copies();
+    return all.isEmpty ? null : all.first.at;
   }
 
-  /// Whether a copy should be written at [now].
-  static bool isDue(DateTime? last, DateTime now) {
-    if (last == null) return true;
-    return now.difference(last) >= interval;
-  }
-
-  Future<File> write(BackupZip zip) async {
+  @override
+  Future<void> write(BackupZip zip) async {
     final dir = await directory();
-    var name = zip.fileName;
+    final name = zip.fileName;
     var dest = File(p.join(dir.path, name));
     var n = 2;
     while (await dest.exists()) {
@@ -63,6 +65,8 @@ class LocalBackupStore {
       n++;
     }
     await dest.writeAsBytes(zip.bytes, flush: true);
-    return dest;
   }
+
+  @override
+  Future<Uint8List> read(BackupCopy copy) => File(copy.id).readAsBytes();
 }

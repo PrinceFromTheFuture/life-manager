@@ -12,9 +12,9 @@ import 'package:shopping_list/core/design/tokens.dart';
 /// the same square-key language as the register keypad — the whole month is on
 /// screen, so choosing is recognition rather than scrolling a list of numbers.
 ///
-/// Shared by the payment method editor (statement day) and the standing order
-/// editor (the day a rule runs), which is why it carries its own short-month
-/// note rather than leaving each caller to remember it.
+/// Shared by the payment method editor (statement day) and the recurring
+/// editor (the day you usually pay), which is why it carries its own
+/// short-month note rather than leaving each caller to remember it.
 class DayGrid extends StatelessWidget {
   const DayGrid({
     super.key,

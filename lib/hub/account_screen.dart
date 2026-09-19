@@ -1,10 +1,14 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shopping_list/apps/receipts/data/accountant_desk.dart';
+import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/core/backup/app_backup.dart';
 import 'package:shopping_list/core/backup/auto_backup.dart';
+import 'package:shopping_list/core/backup/backup_copy_store.dart';
 import 'package:shopping_list/core/backup/backup_picker.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
@@ -59,6 +63,25 @@ class AccountScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.md),
             child: Text(
+              'ACCOUNTANT',
+              style: Type.eyebrow.copyWith(color: palette.faded),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.md),
+            child: Text(
+              'Business slips leave this phone for the accountant through '
+              'the desk at life-manager.receipts.kantara.co.il. Leave the '
+              'address alone unless you are pointing at a local box.',
+              style: Type.body.copyWith(color: palette.faded),
+            ),
+          ),
+          const PerforatedRule(indent: Space.lg),
+          const _DeskRow(),
+          const SizedBox(height: Space.xl),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.md),
+            child: Text(
               'YOUR DATA',
               style: Type.eyebrow.copyWith(color: palette.faded),
             ),
@@ -68,8 +91,8 @@ class AccountScreen extends ConsumerWidget {
             child: Text(
               'A copy of everything this phone is holding — lists, expenses, '
               'trips, gym, receipt photos and scanning keys. Spindle also '
-              'writes one here every five minutes while it is open. Keep a '
-              'shared copy before installing a new build.',
+              'writes one to Download/Spindle every five minutes while it is '
+              'open, where it survives uninstalling the app.',
               style: Type.body.copyWith(color: palette.faded),
             ),
           ),
@@ -202,6 +225,115 @@ class _KeyRow extends ConsumerWidget {
   }
 }
 
+class _DeskRow extends ConsumerWidget {
+  const _DeskRow();
+
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(accountantDeskOriginProvider).valueOrNull ??
+        AccountantDesk.hostedOrigin;
+    final controller = TextEditingController(text: current);
+    final palette = context.thermal;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: palette.paper,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        titleTextStyle:
+            Type.display.copyWith(fontSize: 20, color: palette.print),
+        title: const Text('Accountant desk'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Clear the field to use the hosted desk again.',
+              style: Type.caption.copyWith(color: palette.faded),
+            ),
+            const SizedBox(height: Space.md),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              style: Type.mono.copyWith(color: palette.print),
+              decoration: const InputDecoration(
+                hintText: AccountantDesk.hostedOrigin,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (saved ?? false) {
+      await ref
+          .read(apiKeyStoreProvider)
+          .writeNamed(AccountantDesk.storageKey, controller.text);
+      ref.invalidate(accountantDeskOriginProvider);
+    }
+    controller.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = context.thermal;
+    final origin = ref.watch(accountantDeskOriginProvider).valueOrNull ??
+        AccountantDesk.hostedOrigin;
+    final overridden = origin != AccountantDesk.hostedOrigin;
+
+    return InkWell(
+      onTap: () => _edit(context, ref),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Space.lg,
+          vertical: Space.md + 2,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Desk address',
+                    style: Type.item.copyWith(color: palette.print),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    origin,
+                    style: Type.caption.copyWith(color: palette.faded),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              overridden ? 'OVERRIDE' : 'HOSTED',
+              style: Type.eyebrow.copyWith(
+                color: overridden ? palette.carbon : palette.faded,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Export and restore of the on-device record.
 class _BackupSection extends ConsumerStatefulWidget {
   const _BackupSection();
@@ -269,7 +401,7 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
     try {
       final path = await const BackupPicker().pickZip();
       if (path == null) return;
-      await applyRestoredCopy(ref, File(path));
+      await applyRestoredCopy(ref, await File(path).readAsBytes());
     } on Exception catch (e) {
       if (!mounted) return;
       showPaperSnack(context, message: 'Could not restore: $e');
@@ -303,8 +435,7 @@ class _BackupSectionState extends ConsumerState<_BackupSection> {
   }
 }
 
-Future<void> applyRestoredCopy(WidgetRef ref, File file) async {
-  final bytes = await file.readAsBytes();
+Future<void> applyRestoredCopy(WidgetRef ref, Uint8List bytes) async {
   AppBackup.inspect(bytes);
 
   final database = ref.read(databaseProvider);
@@ -327,7 +458,7 @@ class _LocalCopiesRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final copies = ref.watch(localBackupCopiesProvider).valueOrNull ?? const [];
+    final copies = ref.watch(backupCopiesProvider).valueOrNull ?? const [];
     final last = copies.isEmpty ? null : copies.first;
     final subtitle = last == null
         ? 'None yet. One will be written while Spindle is open.'
@@ -336,18 +467,17 @@ class _LocalCopiesRow extends ConsumerWidget {
             : '${copies.length} copies · latest ${_when(last)}';
 
     return _DataRow(
-      label: 'Copies on this phone',
+      label: 'Copies in Download/Spindle',
       subtitle: subtitle,
       enabled: copies.isNotEmpty,
       onTap: () => _open(context, ref, copies),
     );
   }
 
-  static String _when(File file) {
-    final name = file.uri.pathSegments.last;
+  static String _when(BackupCopy copy) {
     final match =
-        RegExp(r'spindle_(\d{4}-\d{2}-\d{2})_(\d{6})').firstMatch(name);
-    if (match == null) return name;
+        RegExp(r'spindle_(\d{4}-\d{2}-\d{2})_(\d{6})').firstMatch(copy.name);
+    if (match == null) return copy.name;
     final time = match.group(2)!;
     return '${match.group(1)} ${time.substring(0, 2)}:${time.substring(2, 4)}';
   }
@@ -355,10 +485,10 @@ class _LocalCopiesRow extends ConsumerWidget {
   static Future<void> _open(
     BuildContext context,
     WidgetRef ref,
-    List<File> copies,
+    List<BackupCopy> copies,
   ) async {
     final palette = context.thermal;
-    final chosen = await showDialog<File>(
+    final chosen = await showDialog<BackupCopy>(
       context: context,
       useRootNavigator: false,
       builder: (context) => SimpleDialog(
@@ -416,7 +546,8 @@ class _LocalCopiesRow extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
     try {
-      await applyRestoredCopy(ref, chosen);
+      final bytes = await ref.read(backupCopyStoreProvider).read(chosen);
+      await applyRestoredCopy(ref, bytes);
     } on Exception catch (e) {
       if (!context.mounted) return;
       showPaperSnack(context, message: 'Could not restore: $e');

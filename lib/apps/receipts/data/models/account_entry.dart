@@ -18,6 +18,10 @@ enum LedgerKind {
 
   /// A manual correction that does not correspond to any other record.
   adjustment,
+
+  /// Money moved from one account to another. Two lines, opposite signs,
+  /// same amount — it is not income and not spending.
+  transfer,
 }
 
 /// One immutable line of an account's history.

@@ -62,6 +62,22 @@ class ApiKeyStore {
     );
   }
 
+  Future<String?> readNamed(String key) =>
+      _storage.read(key: key, aOptions: _androidOptions);
+
+  Future<void> writeNamed(String key, String value) async {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      await _storage.delete(key: key, aOptions: _androidOptions);
+      return;
+    }
+    await _storage.write(
+      key: key,
+      value: trimmed,
+      aOptions: _androidOptions,
+    );
+  }
+
   Future<void> clear(ApiKeyKind kind) =>
       _storage.delete(key: kind.storageKey, aOptions: _androidOptions);
 
