@@ -265,7 +265,26 @@ client.on("auth_failure", (message) => {
   console.error("WhatsApp auth failed:", message);
 });
 
-await client.initialize();
+// WhatsApp Web sometimes navigates while the library is still injecting into
+// the page, which kills the execution context. Letting that reach the top level
+// would take the whole container down and hand the restart to Docker, losing
+// the queue and the HTTP server with it. Retry in place instead, and keep the
+// server answering throughout so /status and /qr can explain the wait.
+async function connectWhatsApp(): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await client.initialize();
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      const backoff = Math.min(30_000, attempt * 5_000);
+      console.error(
+        `WhatsApp connect attempt ${attempt} failed: ${lastError}. Retrying in ${backoff / 1000}s.`,
+      );
+      await Bun.sleep(backoff);
+    }
+  }
+}
 
 async function pump(): Promise<void> {
   if (pumping) return;
@@ -430,3 +449,5 @@ const server = Bun.serve({
 });
 
 console.log(`Accountant desk on ${server.url} (${DESK_ENV})`);
+
+void connectWhatsApp();
