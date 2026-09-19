@@ -310,92 +310,136 @@ const server = Bun.serve({
         );
       }
       const page = (client as unknown as { pupPage: {
-        evaluate: (fn: (b64: string) => unknown, arg: string) => Promise<unknown>;
+        evaluate: (
+          fn: (arg: { b64: string; chatId: string }) => unknown,
+          arg: { b64: string; chatId: string },
+        ) => Promise<unknown>;
       } }).pupPage;
-      const result = await page.evaluate((b64: string) => {
+      const result = await page.evaluate((arg) => {
         const w = globalThis as unknown as Record<string, any>;
-        const out: Record<string, unknown> = {};
         return (async () => {
-          try {
-            const file = w.WWebJS.mediaInfoToFile({
-              mimetype: "image/png",
-              data: b64,
-              filename: "probe.png",
-            });
-            out.fileType = file?.type;
-            out.fileSize = file?.size;
+          // Uploads the image exactly the way the library does, then sends it
+          // two ways: spreading the raw prep model into the message as the
+          // library does, and using only its serialized fields.
+          const runOnce = async (spreadRawModel: boolean) => {
+            const trace: Record<string, unknown> = { spreadRawModel };
+            try {
+              const file = w.WWebJS.mediaInfoToFile({
+                mimetype: "image/png",
+                data: arg.b64,
+                filename: "probe.png",
+              });
+              const OpaqueData = w.require("WAWebMediaOpaqueData");
+              const opaque = await OpaqueData.createFromData(file, "image/png");
+              const prep = w.require("WAWebPrepRawMedia").prepRawMedia(opaque, {});
+              const media = await prep.waitForPrep();
 
-            const OpaqueData = w.require("WAWebMediaOpaqueData");
-            const opaque = await OpaqueData.createFromData(file, "image/png");
-            out.opaqueCreated = Boolean(opaque);
-
-            const prep = w.require("WAWebPrepRawMedia").prepRawMedia(opaque, {});
-            out.prepCreated = Boolean(prep);
-
-            const media = await prep.waitForPrep();
-            out.filehash = media?.filehash ?? null;
-            out.mediaTypeRaw = media?.type ?? null;
-
-            const step = async (name: string, run: () => Promise<unknown>) => {
-              try {
-                const value = await run();
-                out[name] = String(value);
-              } catch (error) {
-                out[name] = `THREW: ${String((error as Error)?.message ?? error)}`;
-                throw error;
-              }
-            };
-
-            const MmsMediaTypes = w.require("WAWebMmsMediaTypes");
-            let mediaObject: any;
-            let mediaType: any;
-
-            await step("getOrCreateMediaObject", async () => {
-              mediaObject = w
+              const MmsMediaTypes = w.require("WAWebMmsMediaTypes");
+              const mediaObject = w
                 .require("WAWebMediaStorage")
                 .getOrCreateMediaObject(media.filehash);
-              return mediaObject?.type ?? "no type yet";
-            });
-            await step("msgToMediaType", async () => {
-              mediaType = MmsMediaTypes.msgToMediaType({
+              const mediaType = MmsMediaTypes.msgToMediaType({
                 type: media.type,
                 isGif: media.isGif,
                 isNewsletter: false,
               });
-              return mediaType;
-            });
-            await step("mediaBlobReadied", async () => {
               if (!(media.mediaBlob instanceof OpaqueData)) {
                 media.mediaBlob = await OpaqueData.createFromData(
                   media.mediaBlob,
                   media.mediaBlob.type,
                 );
-                return "recreated";
               }
-              return "already opaque";
-            });
-            await step("consolidate", async () => {
               media.renderableUrl = media.mediaBlob.url();
               mediaObject.consolidate(media.toJSON());
               media.mediaBlob.autorelease();
-              return mediaObject?.type ?? "still no type";
-            });
-            await step("castToV4", async () => MmsMediaTypes.castToV4(mediaObject.type));
-            await step("uploadMedia", async () => {
+
               const { uploadMedia } = w.require("WAWebMediaMmsV4Upload");
               const uploaded = await uploadMedia({
                 mimetype: media.mimetype,
                 mediaObject,
                 mediaType,
               });
-              return uploaded?.mediaEntry ? "mediaEntry ok" : "no mediaEntry";
-            });
-          } catch (error) {
-            out.stoppedWith = String((error as Error)?.message ?? error);
-          }
-          return out;
+              const entry = uploaded.mediaEntry;
+              trace.uploaded = Boolean(entry);
+
+              media.set({
+                clientUrl: entry.mmsUrl,
+                deprecatedMms3Url: entry.deprecatedMms3Url,
+                directPath: entry.directPath,
+                mediaKey: entry.mediaKey,
+                mediaKeyTimestamp: entry.mediaKeyTimestamp,
+                filehash: mediaObject.filehash,
+                encFilehash: entry.encFilehash,
+                uploadhash: entry.uploadHash,
+                size: mediaObject.size,
+                streamingSidecar: entry.sidecar,
+                firstFrameSidecar: entry.firstFrameSidecar,
+                mediaHandle: null,
+              });
+
+              const chat = await w.WWebJS.getChat(arg.chatId, {
+                getAsModel: false,
+              });
+              trace.gotChat = Boolean(chat);
+
+              const { getMaybeMeLidUser, getMaybeMePnUser } = w.require(
+                "WAWebUserPrefsMeUser",
+              );
+              const from = chat.id.isLid()
+                ? getMaybeMeLidUser()
+                : getMaybeMePnUser();
+              trace.from = String(from?._serialized ?? from);
+
+              const MsgKey = w.require("WAWebMsgKey");
+              const newMsgKey = new MsgKey({
+                from,
+                to: chat.id,
+                id: await MsgKey.newId(),
+                participant: undefined,
+                selfDir: "out",
+              });
+              const ephemeralFields = w
+                .require("WAWebGetEphemeralFieldsMsgActionsUtils")
+                .getEphemeralFields(chat);
+
+              media.caption = `probe spreadRawModel=${spreadRawModel}`;
+              const message = {
+                id: newMsgKey,
+                ack: 0,
+                body: media.preview,
+                from,
+                to: chat.id,
+                local: true,
+                self: "out",
+                t: Math.floor(Date.now() / 1000),
+                isNewMsg: true,
+                type: "chat",
+                ...ephemeralFields,
+                ...(spreadRawModel ? media : {}),
+                ...media.toJSON(),
+                caption: media.caption,
+              };
+
+              const [msgPromise] = w
+                .require("WAWebSendMsgChatAction")
+                .addAndSendMsgToChat(chat, message);
+              await msgPromise;
+              trace.result = "SENT";
+            } catch (error) {
+              trace.result = `THREW: ${String((error as Error)?.message ?? error)}`;
+            }
+            return trace;
+          };
+
+          return {
+            libraryWay: await runOnce(true),
+            serializedOnly: await runOnce(false),
+          };
         })();
-      }, "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAPklEQVR42u3UoRUAIAhFUcZx/ykci4LRAJFzaT94my9O3a3r7gCsAKYP3wbsAPwFgB4A9ACgBwA9AOgB4LMTon2AarjDIxsAAAAASUVORK5CYII=");
+      }, {
+        b64: "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAPklEQVR42u3UoRUAIAhFUcZx/ykci4LRAJFzaT94my9O3a3r7gCsAKYP3wbsAPwFgB4A9ACgBwA9AOgB4LMTon2AarjDIxsAAAAASUVORK5CYII=",
+        chatId: `${ACCOUNTANT_NUMBER}@c.us`,
+      });
       return Response.json(result);
     }
 
