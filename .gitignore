@@ -1,27 +1,9 @@
-.dart_tool/
-.packages
-build/
-.flutter-plugins
-.flutter-plugins-dependencies
-pubspec.lock
-
-# IDE
-.idea/
-.vscode/
-*.iml
-
-# Android
-android/.gradle/
-android/local.properties
-android/app/debug/
-android/app/profile/
-android/app/release/
-*.jks
-key.properties
-
-# OS
 .DS_Store
-Thumbs.db
+desk/node_modules/
+desk/.wwebjs_auth/
+desk/.wwebjs_cache/
+mobile/build/
+mobile/.dart_tool/
+*.apk
+*.ipa
 
-# Live phone dumps. They include scanning keys and real receipts.
-test/fixtures/local/
