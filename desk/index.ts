@@ -300,6 +300,57 @@ const server = Bun.serve({
       });
     }
 
+    // Walks WhatsApp's own media-prep steps one at a time and reports what
+    // each returns, to find which one stopped producing a filehash.
+    if (pathname === "/probe") {
+      if (!ready) {
+        return Response.json(
+          { error: "WhatsApp is not connected" },
+          { status: 503 },
+        );
+      }
+      const page = (client as unknown as { pupPage: {
+        evaluate: (fn: (b64: string) => unknown, arg: string) => Promise<unknown>;
+      } }).pupPage;
+      const result = await page.evaluate((b64: string) => {
+        const w = globalThis as unknown as Record<string, any>;
+        const out: Record<string, unknown> = {};
+        return (async () => {
+          try {
+            const file = w.WWebJS.mediaInfoToFile({
+              mimetype: "image/png",
+              data: b64,
+              filename: "probe.png",
+            });
+            out.fileType = file?.type;
+            out.fileSize = file?.size;
+
+            const OpaqueData = w.require("WAWebMediaOpaqueData");
+            const opaque = await OpaqueData.createFromData(file, "image/png");
+            out.opaqueCreated = Boolean(opaque);
+
+            const prep = w.require("WAWebPrepRawMedia").prepRawMedia(opaque, {});
+            out.prepCreated = Boolean(prep);
+
+            const media = await prep.waitForPrep();
+            out.mediaDataKeys = media ? Object.keys(media) : null;
+            out.filehash = media?.filehash ?? null;
+            out.mediaType = media?.type ?? null;
+            try {
+              out.jsonKeys = Object.keys(media.toJSON());
+              out.jsonFilehash = media.toJSON()?.filehash ?? null;
+            } catch (error) {
+              out.toJsonError = String((error as Error)?.message ?? error);
+            }
+          } catch (error) {
+            out.failedAt = String((error as Error)?.message ?? error);
+          }
+          return out;
+        })();
+      }, "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAPklEQVR42u3UoRUAIAhFUcZx/ykci4LRAJFzaT94my9O3a3r7gCsAKYP3wbsAPwFgB4A9ACgBwA9AOgB4LMTon2AarjDIxsAAAAASUVORK5CYII=");
+      return Response.json(result);
+    }
+
     if (pathname === "/diag") {
       if (!ready) {
         return Response.json(
