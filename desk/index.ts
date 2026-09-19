@@ -199,6 +199,57 @@ async function asJobs(form: Awaited<ReturnType<Request["formData"]>>): Promise<J
   return jobs;
 }
 
+// WhatsApp has moved these numbers to `@lid` addressing, which the web client
+// resolves inconsistently: some call paths hand back a chat model with no id
+// and the send dies on a memoizing getter. Try each way of reaching the chat
+// and report which one actually delivers, so the sender can use that one.
+async function diagnose(): Promise<unknown> {
+  const results: Array<Record<string, unknown>> = [];
+  const attempt = async (strategy: string, run: () => Promise<string>) => {
+    try {
+      results.push({ strategy, ok: true, detail: await run() });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      results.push({ strategy, ok: false, error: text.split("\n")[0] });
+    }
+  };
+
+  const cus = `${ACCOUNTANT_NUMBER}@c.us`;
+  const lid = (await client.getNumberId(ACCOUNTANT_NUMBER))?._serialized ?? null;
+
+  await attempt("getChatById(@c.us)", async () => {
+    const chat = await client.getChatById(cus);
+    return chat?.id?._serialized ?? "no id";
+  });
+  await attempt("client.sendMessage(@c.us)", async () => {
+    const msg = await client.sendMessage(cus, "desk diag: c.us direct");
+    return msg?.id?._serialized ?? "sent";
+  });
+  await attempt("chat(@c.us).sendMessage", async () => {
+    const chat = await client.getChatById(cus);
+    const msg = await chat.sendMessage("desk diag: c.us via chat");
+    return msg?.id?._serialized ?? "sent";
+  });
+
+  if (lid) {
+    await attempt("getChatById(@lid)", async () => {
+      const chat = await client.getChatById(lid);
+      return chat?.id?._serialized ?? "no id";
+    });
+    await attempt("client.sendMessage(@lid)", async () => {
+      const msg = await client.sendMessage(lid, "desk diag: lid direct");
+      return msg?.id?._serialized ?? "sent";
+    });
+    await attempt("chat(@lid).sendMessage", async () => {
+      const chat = await client.getChatById(lid);
+      const msg = await chat.sendMessage("desk diag: lid via chat");
+      return msg?.id?._serialized ?? "sent";
+    });
+  }
+
+  return { number: ACCOUNTANT_NUMBER, lid, results };
+}
+
 const server = Bun.serve({
   port: PORT,
   maxRequestBodySize: 32 * 1024 * 1024,
@@ -240,6 +291,16 @@ const server = Bun.serve({
         onWhatsApp: found != null,
         wid: found?._serialized ?? null,
       });
+    }
+
+    if (pathname === "/diag") {
+      if (!ready) {
+        return Response.json(
+          { error: "WhatsApp is not connected" },
+          { status: 503 },
+        );
+      }
+      return Response.json(await diagnose());
     }
 
     if (pathname === "/qr") {
