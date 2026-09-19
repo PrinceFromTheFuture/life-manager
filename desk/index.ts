@@ -9,8 +9,7 @@ const PORT = Number(Bun.env.PORT ?? 5555);
 const DESK_ENV = (Bun.env.DESK_ENV ?? "dev").trim().toLowerCase() === "prod"
   ? "prod"
   : "dev";
-const ACCOUNTANT =
-  DESK_ENV === "prod" ? "972546850133@c.us" : "97289267927@c.us";
+const ACCOUNTANT_NUMBER = DESK_ENV === "prod" ? "972546850133" : "97289267927";
 const GAP_MS = 20_000;
 const CHROMIUM = (() => {
   for (const path of [
@@ -35,6 +34,28 @@ let pumping = false;
 let lastSentAt = 0;
 let ready = false;
 let latestQr: string | null = null;
+let sentCount = 0;
+let failedCount = 0;
+let lastError: string | null = null;
+let accountantWid: string | null = null;
+
+// WhatsApp addresses a chat by its own id, and guessing it as `<digits>@c.us`
+// silently produces an address that resolves to nothing when the number has no
+// WhatsApp account — sendMessage then dies deep inside the web client with an
+// error that names neither the number nor the cause. Ask WhatsApp to resolve
+// it instead, so an unreachable number is reported as exactly that.
+async function accountantAddress(): Promise<string> {
+  if (accountantWid) return accountantWid;
+  const resolved = await client.getNumberId(ACCOUNTANT_NUMBER);
+  if (!resolved) {
+    throw new Error(
+      `${ACCOUNTANT_NUMBER} has no WhatsApp account, so nothing can be sent to it.`,
+    );
+  }
+  accountantWid = resolved._serialized;
+  console.log(`Accountant resolved to ${accountantWid}`);
+  return accountantWid;
+}
 
 // A redeploy kills the container outright, so Chromium never releases the
 // profile lock it keeps on the session volume and the next boot refuses to
@@ -85,7 +106,8 @@ client.on("qr", (qr) => {
 client.on("ready", () => {
   ready = true;
   latestQr = null;
-  console.log(`WhatsApp ready. ${DESK_ENV} slips go to ${ACCOUNTANT}`);
+  accountantWid = null;
+  console.log(`WhatsApp ready. ${DESK_ENV} slips go to ${ACCOUNTANT_NUMBER}`);
   void pump();
 });
 
@@ -114,13 +136,22 @@ async function pump(): Promise<void> {
       if (lastSentAt > 0 && wait > 0) await Bun.sleep(wait);
       const job = queue.shift();
       if (!job) break;
-      const media = new MessageMedia(job.mime, job.data, job.filename);
-      await client.sendMessage(ACCOUNTANT, media, { caption: job.caption });
-      lastSentAt = Date.now();
-      console.log(`Sent ${job.filename} (${queue.length} waiting)`);
+      // One bad slip must not discard the ones queued behind it: the phone has
+      // already been told the whole batch was accepted.
+      try {
+        const media = new MessageMedia(job.mime, job.data, job.filename);
+        await client.sendMessage(await accountantAddress(), media, {
+          caption: job.caption,
+        });
+        lastSentAt = Date.now();
+        sentCount += 1;
+        console.log(`Sent ${job.filename} (${queue.length} waiting)`);
+      } catch (error) {
+        failedCount += 1;
+        lastError = error instanceof Error ? error.message : String(error);
+        console.error(`Send failed for ${job.filename}: ${lastError}`);
+      }
     }
-  } catch (error) {
-    console.error("Send failed:", error);
   } finally {
     pumping = false;
     if (queue.length > 0 && ready) void pump();
@@ -183,7 +214,31 @@ const server = Bun.serve({
         ready,
         queued: queue.length,
         env: DESK_ENV,
-        accountant: ACCOUNTANT,
+        accountant: ACCOUNTANT_NUMBER,
+        resolved: accountantWid,
+        sent: sentCount,
+        failed: failedCount,
+        lastError,
+      });
+    }
+
+    // Answers the only question worth asking when nothing arrives: does the
+    // target number actually have a WhatsApp account?
+    if (pathname === "/check") {
+      if (!ready) {
+        return Response.json(
+          { error: "WhatsApp is not connected" },
+          { status: 503 },
+        );
+      }
+      const asked = new URL(req.url).searchParams.get("number")
+        ?? ACCOUNTANT_NUMBER;
+      const digits = asked.replace(/\D/g, "");
+      const found = await client.getNumberId(digits);
+      return Response.json({
+        number: digits,
+        onWhatsApp: found != null,
+        wid: found?._serialized ?? null,
       });
     }
 
