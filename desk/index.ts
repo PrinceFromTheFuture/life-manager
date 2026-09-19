@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
-import { Client, LocalAuth, MessageMedia } from "whatsapp-web.js";
+import { Client, LocalAuth } from "whatsapp-web.js";
 import QRCode from "qrcode";
 import qrcodeTerminal from "qrcode-terminal";
 
@@ -40,11 +40,9 @@ let failedCount = 0;
 let lastError: string | null = null;
 let accountantWid: string | null = null;
 
-// WhatsApp addresses a chat by its own id, and guessing it as `<digits>@c.us`
-// silently produces an address that resolves to nothing when the number has no
-// WhatsApp account — sendMessage then dies deep inside the web client with an
-// error that names neither the number nor the cause. Ask WhatsApp to resolve
-// it instead, so an unreachable number is reported as exactly that.
+// Confirms the number is reachable before anything is queued against it, so an
+// unregistered number is reported as exactly that rather than as a failure deep
+// inside the web client. Returns the chat address to send to.
 async function accountantAddress(): Promise<string> {
   if (accountantWid) return accountantWid;
   const resolved = await client.getNumberId(ACCOUNTANT_NUMBER);
@@ -53,9 +51,154 @@ async function accountantAddress(): Promise<string> {
       `${ACCOUNTANT_NUMBER} has no WhatsApp account, so nothing can be sent to it.`,
     );
   }
-  accountantWid = resolved._serialized;
-  console.log(`Accountant resolved to ${accountantWid}`);
+  accountantWid = `${ACCOUNTANT_NUMBER}@c.us`;
+  console.log(`Accountant ${ACCOUNTANT_NUMBER} is on WhatsApp as ${resolved._serialized}`);
   return accountantWid;
+}
+
+// whatsapp-web.js cannot send media against the current WhatsApp Web build: it
+// spreads the raw prep model into the outgoing message, so Backbone internals
+// (`parent`, `collection`, `_uiObservers`) ride along and WhatsApp's memoizing
+// getter is handed an object with no id. Text is unaffected, which is why only
+// images failed. This runs WhatsApp's own upload-and-send steps and passes only
+// the model's serialized fields, which is the one arrangement that delivers.
+async function sendImage(chatId: string, job: Job): Promise<void> {
+  const page = (client as unknown as {
+    pupPage: {
+      evaluate: (
+        fn: (arg: {
+          chatId: string;
+          mime: string;
+          data: string;
+          filename: string;
+          caption: string;
+        }) => Promise<string | null>,
+        arg: {
+          chatId: string;
+          mime: string;
+          data: string;
+          filename: string;
+          caption: string;
+        },
+      ) => Promise<string | null>;
+    };
+  }).pupPage;
+
+  const failure = await page.evaluate(
+    (arg) => {
+      const w = globalThis as unknown as Record<string, any>;
+      return (async () => {
+        try {
+          const file = w.WWebJS.mediaInfoToFile({
+            mimetype: arg.mime,
+            data: arg.data,
+            filename: arg.filename,
+          });
+          const OpaqueData = w.require("WAWebMediaOpaqueData");
+          const opaque = await OpaqueData.createFromData(file, arg.mime);
+          const media = await w
+            .require("WAWebPrepRawMedia")
+            .prepRawMedia(opaque, {})
+            .waitForPrep();
+
+          const MmsMediaTypes = w.require("WAWebMmsMediaTypes");
+          const mediaObject = w
+            .require("WAWebMediaStorage")
+            .getOrCreateMediaObject(media.filehash);
+          const mediaType = MmsMediaTypes.msgToMediaType({
+            type: media.type,
+            isGif: media.isGif,
+            isNewsletter: false,
+          });
+          if (!(media.mediaBlob instanceof OpaqueData)) {
+            media.mediaBlob = await OpaqueData.createFromData(
+              media.mediaBlob,
+              media.mediaBlob.type,
+            );
+          }
+          media.renderableUrl = media.mediaBlob.url();
+          mediaObject.consolidate(media.toJSON());
+          media.mediaBlob.autorelease();
+
+          const entry = (
+            await w.require("WAWebMediaMmsV4Upload").uploadMedia({
+              mimetype: media.mimetype,
+              mediaObject,
+              mediaType,
+            })
+          ).mediaEntry;
+          if (!entry) return "WhatsApp accepted no media entry for the upload";
+
+          media.set({
+            clientUrl: entry.mmsUrl,
+            deprecatedMms3Url: entry.deprecatedMms3Url,
+            directPath: entry.directPath,
+            mediaKey: entry.mediaKey,
+            mediaKeyTimestamp: entry.mediaKeyTimestamp,
+            filehash: mediaObject.filehash,
+            encFilehash: entry.encFilehash,
+            uploadhash: entry.uploadHash,
+            size: mediaObject.size,
+            streamingSidecar: entry.sidecar,
+            firstFrameSidecar: entry.firstFrameSidecar,
+            mediaHandle: null,
+          });
+
+          const chat = await w.WWebJS.getChat(arg.chatId, {
+            getAsModel: false,
+          });
+          if (!chat) return `No chat for ${arg.chatId}`;
+
+          const { getMaybeMeLidUser, getMaybeMePnUser } = w.require(
+            "WAWebUserPrefsMeUser",
+          );
+          const from = chat.id.isLid()
+            ? getMaybeMeLidUser()
+            : getMaybeMePnUser();
+          const MsgKey = w.require("WAWebMsgKey");
+
+          const [msgPromise] = w
+            .require("WAWebSendMsgChatAction")
+            .addAndSendMsgToChat(chat, {
+              id: new MsgKey({
+                from,
+                to: chat.id,
+                id: await MsgKey.newId(),
+                participant: undefined,
+                selfDir: "out",
+              }),
+              ack: 0,
+              body: media.preview,
+              from,
+              to: chat.id,
+              local: true,
+              self: "out",
+              t: Math.floor(Date.now() / 1000),
+              isNewMsg: true,
+              type: "chat",
+              ...w
+                .require("WAWebGetEphemeralFieldsMsgActionsUtils")
+                .getEphemeralFields(chat),
+              ...media.toJSON(),
+              caption: arg.caption,
+            });
+          await msgPromise;
+          return null;
+        } catch (error) {
+          return String((error as Error)?.message ?? error);
+        }
+      })();
+    },
+    {
+      chatId,
+      mime: job.mime,
+      data: job.data,
+      filename: job.filename,
+      caption: job.caption,
+    },
+  );
+
+  if (failure) throw new Error(failure);
 }
 
 // A redeploy kills the container outright, so Chromium never releases the
@@ -140,10 +283,7 @@ async function pump(): Promise<void> {
       // One bad slip must not discard the ones queued behind it: the phone has
       // already been told the whole batch was accepted.
       try {
-        const media = new MessageMedia(job.mime, job.data, job.filename);
-        await client.sendMessage(await accountantAddress(), media, {
-          caption: job.caption,
-        });
+        await sendImage(await accountantAddress(), job);
         lastSentAt = Date.now();
         sentCount += 1;
         console.log(`Sent ${job.filename} (${queue.length} waiting)`);
@@ -200,63 +340,6 @@ async function asJobs(form: Awaited<ReturnType<Request["formData"]>>): Promise<J
   return jobs;
 }
 
-// WhatsApp has moved these numbers to `@lid` addressing, which the web client
-// resolves inconsistently: some call paths hand back a chat model with no id
-// and the send dies on a memoizing getter. Try each way of reaching the chat
-// and report which one actually delivers, so the sender can use that one.
-async function diagnose(): Promise<unknown> {
-  const results: Array<Record<string, unknown>> = [];
-  const attempt = async (strategy: string, run: () => Promise<string>) => {
-    try {
-      results.push({ strategy, ok: true, detail: await run() });
-    } catch (error) {
-      const text = error instanceof Error ? error.message : String(error);
-      results.push({ strategy, ok: false, error: text.split("\n")[0] });
-    }
-  };
-
-  const cus = `${ACCOUNTANT_NUMBER}@c.us`;
-  const lid = (await client.getNumberId(ACCOUNTANT_NUMBER))?._serialized ?? null;
-  const swatch = () =>
-    new MessageMedia(
-      "image/png",
-      "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAPklEQVR42u3UoRUAIAhFUcZx/ykci4LRAJFzaT94my9O3a3r7gCsAKYP3wbsAPwFgB4A9ACgBwA9AOgB4LMTon2AarjDIxsAAAAASUVORK5CYII=",
-      "diag.png",
-    );
-
-  await attempt("text @c.us", async () => {
-    const msg = await client.sendMessage(cus, "desk diag: text");
-    return msg?.id?._serialized ?? "sent";
-  });
-  await attempt("media @c.us, no caption", async () => {
-    const msg = await client.sendMessage(cus, swatch());
-    return msg?.id?._serialized ?? "sent";
-  });
-  await attempt("media @c.us, with caption", async () => {
-    const msg = await client.sendMessage(cus, swatch(), { caption: "diag" });
-    return msg?.id?._serialized ?? "sent";
-  });
-  await attempt("media @c.us, as document", async () => {
-    const msg = await client.sendMessage(cus, swatch(), {
-      sendMediaAsDocument: true,
-    });
-    return msg?.id?._serialized ?? "sent";
-  });
-
-  if (lid) {
-    await attempt("media @lid, no caption", async () => {
-      const msg = await client.sendMessage(lid, swatch());
-      return msg?.id?._serialized ?? "sent";
-    });
-    await attempt("media @lid, with caption", async () => {
-      const msg = await client.sendMessage(lid, swatch(), { caption: "diag" });
-      return msg?.id?._serialized ?? "sent";
-    });
-  }
-
-  return { number: ACCOUNTANT_NUMBER, lid, results };
-}
-
 const server = Bun.serve({
   port: PORT,
   maxRequestBodySize: 32 * 1024 * 1024,
@@ -301,157 +384,6 @@ const server = Bun.serve({
     }
 
     // Walks WhatsApp's own media-prep steps one at a time and reports what
-    // each returns, to find which one stopped producing a filehash.
-    if (pathname === "/probe") {
-      if (!ready) {
-        return Response.json(
-          { error: "WhatsApp is not connected" },
-          { status: 503 },
-        );
-      }
-      const page = (client as unknown as { pupPage: {
-        evaluate: (
-          fn: (arg: { b64: string; chatId: string }) => unknown,
-          arg: { b64: string; chatId: string },
-        ) => Promise<unknown>;
-      } }).pupPage;
-      const result = await page.evaluate((arg) => {
-        const w = globalThis as unknown as Record<string, any>;
-        return (async () => {
-          // Uploads the image exactly the way the library does, then sends it
-          // two ways: spreading the raw prep model into the message as the
-          // library does, and using only its serialized fields.
-          const runOnce = async (spreadRawModel: boolean) => {
-            const trace: Record<string, unknown> = { spreadRawModel };
-            try {
-              const file = w.WWebJS.mediaInfoToFile({
-                mimetype: "image/png",
-                data: arg.b64,
-                filename: "probe.png",
-              });
-              const OpaqueData = w.require("WAWebMediaOpaqueData");
-              const opaque = await OpaqueData.createFromData(file, "image/png");
-              const prep = w.require("WAWebPrepRawMedia").prepRawMedia(opaque, {});
-              const media = await prep.waitForPrep();
-
-              const MmsMediaTypes = w.require("WAWebMmsMediaTypes");
-              const mediaObject = w
-                .require("WAWebMediaStorage")
-                .getOrCreateMediaObject(media.filehash);
-              const mediaType = MmsMediaTypes.msgToMediaType({
-                type: media.type,
-                isGif: media.isGif,
-                isNewsletter: false,
-              });
-              if (!(media.mediaBlob instanceof OpaqueData)) {
-                media.mediaBlob = await OpaqueData.createFromData(
-                  media.mediaBlob,
-                  media.mediaBlob.type,
-                );
-              }
-              media.renderableUrl = media.mediaBlob.url();
-              mediaObject.consolidate(media.toJSON());
-              media.mediaBlob.autorelease();
-
-              const { uploadMedia } = w.require("WAWebMediaMmsV4Upload");
-              const uploaded = await uploadMedia({
-                mimetype: media.mimetype,
-                mediaObject,
-                mediaType,
-              });
-              const entry = uploaded.mediaEntry;
-              trace.uploaded = Boolean(entry);
-
-              media.set({
-                clientUrl: entry.mmsUrl,
-                deprecatedMms3Url: entry.deprecatedMms3Url,
-                directPath: entry.directPath,
-                mediaKey: entry.mediaKey,
-                mediaKeyTimestamp: entry.mediaKeyTimestamp,
-                filehash: mediaObject.filehash,
-                encFilehash: entry.encFilehash,
-                uploadhash: entry.uploadHash,
-                size: mediaObject.size,
-                streamingSidecar: entry.sidecar,
-                firstFrameSidecar: entry.firstFrameSidecar,
-                mediaHandle: null,
-              });
-
-              const chat = await w.WWebJS.getChat(arg.chatId, {
-                getAsModel: false,
-              });
-              trace.gotChat = Boolean(chat);
-
-              const { getMaybeMeLidUser, getMaybeMePnUser } = w.require(
-                "WAWebUserPrefsMeUser",
-              );
-              const from = chat.id.isLid()
-                ? getMaybeMeLidUser()
-                : getMaybeMePnUser();
-              trace.from = String(from?._serialized ?? from);
-
-              const MsgKey = w.require("WAWebMsgKey");
-              const newMsgKey = new MsgKey({
-                from,
-                to: chat.id,
-                id: await MsgKey.newId(),
-                participant: undefined,
-                selfDir: "out",
-              });
-              const ephemeralFields = w
-                .require("WAWebGetEphemeralFieldsMsgActionsUtils")
-                .getEphemeralFields(chat);
-
-              media.caption = `probe spreadRawModel=${spreadRawModel}`;
-              const message = {
-                id: newMsgKey,
-                ack: 0,
-                body: media.preview,
-                from,
-                to: chat.id,
-                local: true,
-                self: "out",
-                t: Math.floor(Date.now() / 1000),
-                isNewMsg: true,
-                type: "chat",
-                ...ephemeralFields,
-                ...(spreadRawModel ? media : {}),
-                ...media.toJSON(),
-                caption: media.caption,
-              };
-
-              const [msgPromise] = w
-                .require("WAWebSendMsgChatAction")
-                .addAndSendMsgToChat(chat, message);
-              await msgPromise;
-              trace.result = "SENT";
-            } catch (error) {
-              trace.result = `THREW: ${String((error as Error)?.message ?? error)}`;
-            }
-            return trace;
-          };
-
-          return {
-            libraryWay: await runOnce(true),
-            serializedOnly: await runOnce(false),
-          };
-        })();
-      }, {
-        b64: "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAPklEQVR42u3UoRUAIAhFUcZx/ykci4LRAJFzaT94my9O3a3r7gCsAKYP3wbsAPwFgB4A9ACgBwA9AOgB4LMTon2AarjDIxsAAAAASUVORK5CYII=",
-        chatId: `${ACCOUNTANT_NUMBER}@c.us`,
-      });
-      return Response.json(result);
-    }
-
-    if (pathname === "/diag") {
-      if (!ready) {
-        return Response.json(
-          { error: "WhatsApp is not connected" },
-          { status: 503 },
-        );
-      }
-      return Response.json(await diagnose());
-    }
 
     if (pathname === "/qr") {
       if (ready) return new Response(null, { status: 204 });
