@@ -1,8 +1,10 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import { basename, join } from "node:path";
 import { Client, LocalAuth, MessageMedia } from "whatsapp-web.js";
 import QRCode from "qrcode";
 import qrcodeTerminal from "qrcode-terminal";
 
+const AUTH_PATH = "./.wwebjs_auth";
 const PORT = Number(Bun.env.PORT ?? 5555);
 const DESK_ENV = (Bun.env.DESK_ENV ?? "dev").trim().toLowerCase() === "prod"
   ? "prod"
@@ -34,8 +36,33 @@ let lastSentAt = 0;
 let ready = false;
 let latestQr: string | null = null;
 
+// A redeploy kills the container outright, so Chromium never releases the
+// profile lock it keeps on the session volume and the next boot refuses to
+// launch. Only one desk ever runs against this volume, so any lock found at
+// startup belongs to a process that is already gone.
+function clearStaleProfileLocks(): void {
+  if (!existsSync(AUTH_PATH)) return;
+  let entries: string[];
+  try {
+    entries = readdirSync(AUTH_PATH, { recursive: true }) as string[];
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!basename(entry).startsWith("Singleton")) continue;
+    try {
+      rmSync(join(AUTH_PATH, entry), { force: true });
+      console.log(`Cleared stale profile lock: ${entry}`);
+    } catch {
+      // Leave it: Chromium's own launch error says more than we could here.
+    }
+  }
+}
+
+clearStaleProfileLocks();
+
 const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: "./.wwebjs_auth" }),
+  authStrategy: new LocalAuth({ dataPath: AUTH_PATH }),
   puppeteer: {
     headless: true,
     executablePath: CHROMIUM,

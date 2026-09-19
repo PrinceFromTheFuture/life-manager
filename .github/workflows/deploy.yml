@@ -43,8 +43,14 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ${{ steps.img.outputs.name }}:latest
             docker rm -f accountant-desk || true
+            # Joins the Kantara stack network so its Caddy edge can reach this
+            # container by name and terminate TLS for
+            # life-manager.receipts.kantara.co.il. The published port is
+            # loopback-only: the desk has no auth of its own, so the public way
+            # in must stay Caddy.
             docker run -d --name accountant-desk --restart unless-stopped \
-              -p 5555:5555 \
+              --network barber-shop-prod_default \
+              -p 127.0.0.1:5555:5555 \
               --shm-size=1g \
               -e DESK_ENV='${{ secrets.DESK_ENV }}' \
               -v accountant-desk-auth:/app/.wwebjs_auth \
