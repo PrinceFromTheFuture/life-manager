@@ -333,17 +333,48 @@ const server = Bun.serve({
             out.prepCreated = Boolean(prep);
 
             const media = await prep.waitForPrep();
-            out.mediaDataKeys = media ? Object.keys(media) : null;
             out.filehash = media?.filehash ?? null;
-            out.mediaType = media?.type ?? null;
-            try {
-              out.jsonKeys = Object.keys(media.toJSON());
-              out.jsonFilehash = media.toJSON()?.filehash ?? null;
-            } catch (error) {
-              out.toJsonError = String((error as Error)?.message ?? error);
-            }
+            out.mediaTypeRaw = media?.type ?? null;
+
+            const step = async (name: string, run: () => Promise<unknown>) => {
+              try {
+                const value = await run();
+                out[name] = String(value);
+              } catch (error) {
+                out[name] = `THREW: ${String((error as Error)?.message ?? error)}`;
+                throw error;
+              }
+            };
+
+            const MmsMediaTypes = w.require("WAWebMmsMediaTypes");
+            let mediaObject: any;
+            let mediaType: any;
+
+            await step("getOrCreateMediaObject", async () => {
+              mediaObject = w
+                .require("WAWebMediaStorage")
+                .getOrCreateMediaObject(media.filehash);
+              return mediaObject?.type ?? "no type";
+            });
+            await step("msgToMediaType", async () => {
+              mediaType = MmsMediaTypes.msgToMediaType({
+                type: media.type,
+                isGif: media.isGif,
+              });
+              return mediaType;
+            });
+            await step("castToV4", async () => MmsMediaTypes.castToV4(mediaObject.type));
+            await step("uploadMedia", async () => {
+              const { uploadMedia } = w.require("WAWebMediaMmsV4Upload");
+              const uploaded = await uploadMedia({
+                mimetype: media.mimetype,
+                mediaObject,
+                mediaType,
+              });
+              return uploaded?.mediaEntry ? "mediaEntry ok" : "no mediaEntry";
+            });
           } catch (error) {
-            out.failedAt = String((error as Error)?.message ?? error);
+            out.stoppedWith = String((error as Error)?.message ?? error);
           }
           return out;
         })();
