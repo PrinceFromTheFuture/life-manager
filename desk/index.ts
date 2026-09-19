@@ -216,33 +216,39 @@ async function diagnose(): Promise<unknown> {
 
   const cus = `${ACCOUNTANT_NUMBER}@c.us`;
   const lid = (await client.getNumberId(ACCOUNTANT_NUMBER))?._serialized ?? null;
+  const swatch = () =>
+    new MessageMedia(
+      "image/png",
+      "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAPklEQVR42u3UoRUAIAhFUcZx/ykci4LRAJFzaT94my9O3a3r7gCsAKYP3wbsAPwFgB4A9ACgBwA9AOgB4LMTon2AarjDIxsAAAAASUVORK5CYII=",
+      "diag.png",
+    );
 
-  await attempt("getChatById(@c.us)", async () => {
-    const chat = await client.getChatById(cus);
-    return chat?.id?._serialized ?? "no id";
-  });
-  await attempt("client.sendMessage(@c.us)", async () => {
-    const msg = await client.sendMessage(cus, "desk diag: c.us direct");
+  await attempt("text @c.us", async () => {
+    const msg = await client.sendMessage(cus, "desk diag: text");
     return msg?.id?._serialized ?? "sent";
   });
-  await attempt("chat(@c.us).sendMessage", async () => {
-    const chat = await client.getChatById(cus);
-    const msg = await chat.sendMessage("desk diag: c.us via chat");
+  await attempt("media @c.us, no caption", async () => {
+    const msg = await client.sendMessage(cus, swatch());
+    return msg?.id?._serialized ?? "sent";
+  });
+  await attempt("media @c.us, with caption", async () => {
+    const msg = await client.sendMessage(cus, swatch(), { caption: "diag" });
+    return msg?.id?._serialized ?? "sent";
+  });
+  await attempt("media @c.us, as document", async () => {
+    const msg = await client.sendMessage(cus, swatch(), {
+      sendMediaAsDocument: true,
+    });
     return msg?.id?._serialized ?? "sent";
   });
 
   if (lid) {
-    await attempt("getChatById(@lid)", async () => {
-      const chat = await client.getChatById(lid);
-      return chat?.id?._serialized ?? "no id";
-    });
-    await attempt("client.sendMessage(@lid)", async () => {
-      const msg = await client.sendMessage(lid, "desk diag: lid direct");
+    await attempt("media @lid, no caption", async () => {
+      const msg = await client.sendMessage(lid, swatch());
       return msg?.id?._serialized ?? "sent";
     });
-    await attempt("chat(@lid).sendMessage", async () => {
-      const chat = await client.getChatById(lid);
-      const msg = await chat.sendMessage("desk diag: lid via chat");
+    await attempt("media @lid, with caption", async () => {
+      const msg = await client.sendMessage(lid, swatch(), { caption: "diag" });
       return msg?.id?._serialized ?? "sent";
     });
   }
