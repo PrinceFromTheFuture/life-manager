@@ -149,16 +149,8 @@ class HubScreen extends ConsumerWidget {
                   onPressed: addExpense,
                   style: FilledButton.styleFrom(
                     backgroundColor: receiptsInk,
-                    foregroundColor: onInk,
+                    foregroundColor: Colors.white,
                     minimumSize: const Size(0, Plate.height),
-                    shape: InkPlateBorder(
-                      borderRadius: Radii.key,
-                      side: BorderSide(
-                        color: Color.lerp(receiptsInk, palette.print, 0.38)!,
-                        width: 1.5,
-                      ),
-                      insetColor: Plate.inset(onInk),
-                    ),
                   ),
                   icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
                   label: const Text('Add expense'),
@@ -194,13 +186,8 @@ class _HubPlate extends StatelessWidget {
       label: semanticLabel,
       child: Material(
         color: color,
-        shape: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(
-            color: Color.lerp(color, context.thermal.print, 0.38)!,
-            width: 1.5,
-          ),
-          insetColor: Plate.inset(onColor),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(

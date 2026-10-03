@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter/services.dart';
 
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/util/money.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The amount being typed, held as digits rather than parsed text.
 ///
@@ -201,8 +201,7 @@ class _Key extends StatelessWidget {
         padding: const EdgeInsets.all(2),
         child: Material(
           color: palette.paperShade,
-          // Keys are paper, and paper has square corners in this system.
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.circular(14),
           child: InkWell(
             onTap: onTap,
             onLongPress: onLongPress,
@@ -210,7 +209,7 @@ class _Key extends StatelessWidget {
               height: 62,
               child: Center(
                 child: icon != null
-                    ? AppIcon(icon!, size: 24, color: palette.print)
+                    ? SolarIcon(icon!, size: 24, color: palette.print)
                     : Text(
                         label!,
                         style: Type.totalDisplay.copyWith(

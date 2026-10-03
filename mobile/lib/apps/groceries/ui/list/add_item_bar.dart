@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/product.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The add field, pinned above the keyboard, with its suggestion strip.
 ///
@@ -129,16 +129,30 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final onInk = Theme.of(context).brightness == Brightness.light
-        ? palette.paper
-        : palette.print;
-
-    return InkPlate(
-      onPressed: onPressed,
-      size: const Size(Plate.height, Plate.height),
-      semanticLabel: 'Add item',
-      child: AppIcon(SolarIcons.AddCircle, color: onInk),
+    return Semantics(
+      button: true,
+      label: 'Add item',
+      child: Material(
+        color: HomePalette.bone,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: const SizedBox(
+            width: 54,
+            height: 54,
+            child: Center(
+              child: SolarIcon(
+                SolarIcons.AddCircle,
+                weight: SolarIconWeight.linear,
+                color: HomePalette.ink,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

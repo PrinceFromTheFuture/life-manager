@@ -168,17 +168,18 @@ class InkPlate extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.thermal;
     final enabled = onPressed != null;
-    final light = Theme.of(context).brightness == Brightness.light;
-    final onInk = light ? palette.paper : palette.print;
 
     final fill = primary
         ? (enabled ? palette.carbon : palette.carbon.withValues(alpha: 0.38))
         : (enabled
-            ? palette.paperShade
-            : palette.paperShade.withValues(alpha: 0.5));
-    final edge = primary
-        ? Plate.edge(palette).withValues(alpha: enabled ? 1 : 0.38)
-        : palette.print.withValues(alpha: enabled ? 1 : 0.35);
+            ? Color.alphaBlend(
+                palette.carbon.withValues(alpha: 0.12),
+                const Color(0xFFF3F3F1),
+              )
+            : const Color(0xFFF3F3F1).withValues(alpha: 0.5));
+    const shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(14)),
+    );
 
     return Semantics(
       button: true,
@@ -186,21 +187,15 @@ class InkPlate extends StatelessWidget {
       label: semanticLabel,
       child: Material(
         color: fill,
-        shape: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(color: edge, width: 1.5),
-          insetColor: primary && enabled ? Plate.inset(onInk) : null,
-        ),
+        shape: shape,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
           overlayColor: WidgetStatePropertyAll(
-            palette.scorch.withValues(alpha: 0.22),
+            (primary ? Colors.white : const Color(0xFF090909))
+                .withValues(alpha: 0.12),
           ),
-          customBorder: InkPlateBorder(
-            borderRadius: Radii.key,
-            side: BorderSide(color: edge, width: 1.5),
-          ),
+          customBorder: shape,
           child: SizedBox(
             width: size?.width,
             height: size?.height ?? Plate.height,

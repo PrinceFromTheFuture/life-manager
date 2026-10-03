@@ -1,13 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/models/account_mark.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/move_chip.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 import 'package:shopping_list/core/design/widgets/count_up_money.dart';
 import 'package:shopping_list/core/util/money.dart';
 
@@ -36,7 +36,7 @@ class GlassPassbook extends StatelessWidget {
     final palette = context.thermal;
     final account = standing.account;
     final mark = account.stamp;
-    final brightness = Theme.of(context).brightness;
+    final brightness = context.stampBrightness;
     final ink = mark.ink.of(brightness);
     final retired = account.isArchived;
 
@@ -181,16 +181,21 @@ class _MarkWell extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = retired
         ? context.thermal.faded
-        : mark.ink.of(Theme.of(context).brightness);
+        : mark.ink.of(context.stampBrightness);
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: ink.withValues(alpha: 0.10),
-        borderRadius: Radii.key,
+        color: ink.withValues(alpha: 0.16),
+        shape: BoxShape.circle,
       ),
       child: Padding(
         padding: const EdgeInsets.all(Space.sm),
-        child: AppIcon(mark.icon, size: 18, color: ink),
+        child: SolarIcon(
+          mark.icon,
+          weight: SolarIconWeight.linear,
+          size: 18,
+          color: ink,
+        ),
       ),
     );
   }

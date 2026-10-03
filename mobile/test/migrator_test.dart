@@ -114,7 +114,7 @@ void main() {
 
       final versions = await Migrator.versions(db.db);
       expect(versions['groceries'], 1, reason: 'adopted at its baseline');
-      expect(versions['core'], 1, reason: 'core genuinely ran');
+      expect(versions['core'], 2, reason: 'core genuinely ran');
 
       await db.close();
     });

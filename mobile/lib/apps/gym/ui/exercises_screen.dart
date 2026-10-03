@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
 import 'package:shopping_list/apps/gym/data/models/exercise.dart';
 import 'package:shopping_list/apps/gym/state/providers.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The catalogue. What is on the rack is what the recorder offers.
 class ExercisesScreen extends ConsumerWidget {
@@ -64,7 +64,7 @@ class _ReorderableList extends ConsumerWidget {
     final controller = ref.read(gymControllerProvider);
 
     return ReorderableListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: Space.md),
+      padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
       itemCount: rows.length,
       onReorder: (oldIndex, newIndex) {
         if (newIndex > oldIndex) newIndex -= 1;
@@ -75,14 +75,14 @@ class _ReorderableList extends ConsumerWidget {
       },
       itemBuilder: (context, index) {
         final row = rows[index];
-        return Container(
+        return Padding(
           key: ValueKey('exercise-${row.id}'),
-          color: context.thermal.paper,
-          child: Column(
-            children: [
-              _ExerciseTile(row: row),
-              const PerforatedRule(indent: Space.lg),
-            ],
+          padding: const EdgeInsets.only(bottom: Space.sm),
+          child: Material(
+            color: HomePalette.tile,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
+            child: _ExerciseTile(row: row),
           ),
         );
       },
@@ -105,7 +105,9 @@ class _ExerciseTile extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: palette.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
         titleTextStyle:
             Type.display.copyWith(fontSize: 20, color: palette.print),
         title: const Text('Rename'),
@@ -145,7 +147,9 @@ class _ExerciseTile extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: palette.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
         titleTextStyle:
             Type.display.copyWith(fontSize: 20, color: palette.print),
         contentTextStyle: Type.body.copyWith(color: palette.print),
@@ -185,7 +189,12 @@ class _ExerciseTile extends ConsumerWidget {
           const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.sm, Space.sm),
       child: Row(
         children: [
-          AppIcon(SolarIcons.HamburgerMenu, size: 18, color: palette.faded),
+          const SolarIcon(
+            SolarIcons.HamburgerMenu,
+            weight: SolarIconWeight.linear,
+            size: 18,
+            color: HomePalette.mist,
+          ),
           const SizedBox(width: Space.md),
           Expanded(
             child: InkWell(
@@ -214,7 +223,12 @@ class _ExerciseTile extends ConsumerWidget {
                 ref.read(gymControllerProvider).setOnRack(row.id!, v),
           ),
           IconButton(
-            icon: const AppIcon(SolarIcons.TrashBinMinimalistic, size: 20),
+            icon: const SolarIcon(
+              SolarIcons.TrashBinMinimalistic,
+              weight: SolarIconWeight.linear,
+              size: 20,
+              color: HomePalette.mist,
+            ),
             color: palette.faded,
             tooltip: 'Delete',
             onPressed: () => _delete(context, ref),

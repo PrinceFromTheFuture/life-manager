@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/gym/data/gym_activity.dart';
@@ -8,11 +9,11 @@ import 'package:shopping_list/apps/gym/state/providers.dart';
 import 'package:shopping_list/apps/gym/ui/exercises_screen.dart';
 import 'package:shopping_list/apps/gym/ui/progress_screen.dart';
 import 'package:shopping_list/apps/gym/ui/record_set_screen.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 import 'package:shopping_list/core/util/load.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Today's day pass — the session is the calendar day.
 ///
@@ -50,17 +51,18 @@ class _DayPassScreenState extends ConsumerState<DayPassScreen> {
       appBar: AppBar(
         title: const Text('Gym'),
         actions: [
-          IconButton(
-            tooltip: 'Progress',
-            icon: const AppIcon(SolarIcons.GraphUp),
-            onPressed: () => Navigator.of(context).push(
+          NightPlate(
+            icon: SolarIcons.GraphUp,
+            label: 'Progress',
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ProgressScreen()),
             ),
           ),
-          IconButton(
-            tooltip: 'Exercises',
-            icon: const AppIcon(SolarIcons.Tuning),
-            onPressed: () => Navigator.of(context).push(
+          const SizedBox(width: Space.sm),
+          NightPlate(
+            icon: SolarIcons.Tuning,
+            label: 'Exercises',
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ExercisesScreen()),
             ),
           ),
@@ -70,7 +72,6 @@ class _DayPassScreenState extends ConsumerState<DayPassScreen> {
       body: Column(
         children: [
           const _DaySelector(),
-          const PerforatedRule(),
           Expanded(
             child: blocks.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -101,7 +102,12 @@ class _DayPassScreenState extends ConsumerState<DayPassScreen> {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: () => RecordSetScreen.open(context),
-            icon: const AppIcon(SolarIcons.AddCircle, size: 20),
+            icon: const SolarIcon(
+              SolarIcons.AddCircle,
+              weight: SolarIconWeight.linear,
+              color: HomePalette.ink,
+              size: 18,
+            ),
             label: const Text('Record a set'),
           ),
         ),
@@ -151,10 +157,11 @@ class _DaySelector extends ConsumerWidget {
         children: [
           Row(
             children: [
-              IconButton(
-                icon: const AppIcon(SolarIcons.AltArrowLeft),
-                tooltip: 'Previous day',
-                onPressed: () => ref.read(selectedDayProvider.notifier).state =
+              NightPlate(
+                icon: SolarIcons.AltArrowLeft,
+                label: 'Previous day',
+                size: 36,
+                onTap: () => ref.read(selectedDayProvider.notifier).state =
                     day.subtract(const Duration(days: 1)),
               ),
               Expanded(
@@ -186,10 +193,11 @@ class _DaySelector extends ConsumerWidget {
                   ),
                 ),
               ),
-              IconButton(
-                icon: const AppIcon(SolarIcons.AltArrowRight),
-                tooltip: 'Next day',
-                onPressed: isToday
+              NightPlate(
+                icon: SolarIcons.AltArrowRight,
+                label: 'Next day',
+                size: 36,
+                onTap: isToday
                     ? null
                     : () => ref.read(selectedDayProvider.notifier).state =
                         day.add(const Duration(days: 1)),
@@ -232,8 +240,6 @@ class _BlankPass extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PerforatedRule(),
-          const SizedBox(height: Space.lg),
           Text(
             'Blank pass.',
             style: Type.display.copyWith(color: palette.print, fontSize: 26),
@@ -259,17 +265,13 @@ class _PassBody extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: Space.xxl),
       children: [
-        for (var i = 0; i < blocks.length; i++) ...[
+        for (final block in blocks) ...[
           const SizedBox(height: Space.lg),
-          if (i == 0) ...[
-            const TearEdge(),
-            const SizedBox(height: Space.md),
-          ],
           _ExerciseBlock(
-            block: blocks[i],
+            block: block,
             onRecord: () => RecordSetScreen.open(
               context,
-              exerciseId: blocks[i].exerciseId,
+              exerciseId: block.exerciseId,
             ),
           ),
         ],
@@ -312,11 +314,8 @@ class _ExerciseBlock extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: Space.sm),
-        for (var i = 0; i < block.sets.length; i++) ...[
+        for (var i = 0; i < block.sets.length; i++)
           _SetRow(set: block.sets[i], index: i + 1),
-          if (i != block.sets.length - 1)
-            const PerforatedRule(indent: Space.lg),
-        ],
       ],
     );
   }
@@ -339,7 +338,9 @@ class _SetRow extends ConsumerWidget {
           builder: (context) => AlertDialog(
             backgroundColor: palette.paper,
             surfaceTintColor: Colors.transparent,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(18)),
+            ),
             titleTextStyle:
                 Type.display.copyWith(fontSize: 20, color: palette.print),
             contentTextStyle: Type.body.copyWith(color: palette.print),
@@ -369,49 +370,65 @@ class _SetRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
 
-    return Dismissible(
-      key: ValueKey('set-${set.id}'),
-      direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => _confirmDelete(context),
-      onDismissed: (_) => ref.read(gymControllerProvider).deleteSet(set.id!),
-      background: ColoredBox(
-        color: palette.paperShade,
-        child: Align(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.sm),
+      child: Dismissible(
+        key: ValueKey('set-${set.id}'),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (_) => _confirmDelete(context),
+        onDismissed: (_) => ref.read(gymControllerProvider).deleteSet(set.id!),
+        background: Container(
           alignment: Alignment.centerRight,
-          child: Padding(
-            padding: const EdgeInsets.only(right: Space.lg),
-            child: Text(
-              'Remove',
-              style: Type.caption.copyWith(color: palette.faded),
-            ),
+          padding: const EdgeInsets.only(right: Space.lg),
+          decoration: BoxDecoration(
+            color: HomePalette.tile,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const SolarIcon(
+            SolarIcons.TrashBinMinimalistic,
+            weight: SolarIconWeight.linear,
+            color: HomePalette.mist,
+            size: 20,
           ),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Space.lg,
-          vertical: Space.md,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 28,
-              child: Text(
-                '$index',
-                style: Type.mono.copyWith(color: palette.faded),
-              ),
+        child: Material(
+          color: HomePalette.tile,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.md,
             ),
-            Expanded(
-              child: Text(
-                Load.format(set.weightG),
-                style: Type.item.copyWith(color: palette.print),
-              ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: palette.carbon.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$index',
+                    style: Type.mono.copyWith(color: palette.carbon),
+                  ),
+                ),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: Text(
+                    Load.format(set.weightG),
+                    style: Type.item.copyWith(color: palette.print),
+                  ),
+                ),
+                Text(
+                  '× ${set.reps}',
+                  style: Type.monoBold.copyWith(color: palette.print),
+                ),
+              ],
             ),
-            Text(
-              '× ${set.reps}',
-              style: Type.monoBold.copyWith(color: palette.print),
-            ),
-          ],
+          ),
         ),
       ),
     );

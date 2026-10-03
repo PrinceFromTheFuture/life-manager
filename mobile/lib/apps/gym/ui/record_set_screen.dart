@@ -9,10 +9,10 @@ import 'package:shopping_list/apps/gym/state/providers.dart';
 import 'package:shopping_list/apps/gym/ui/exercises_screen.dart';
 import 'package:shopping_list/apps/gym/ui/load_keypad.dart';
 import 'package:shopping_list/apps/gym/ui/stamp.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/load.dart';
 
 /// Log a set. Built for the rest between sets: pick from the rack, confirm
@@ -237,8 +237,6 @@ class _EmptyRack extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PerforatedRule(),
-          const SizedBox(height: Space.lg),
           Text(
             'Nothing on the rack.',
             style: Type.display.copyWith(color: palette.print, fontSize: 26),
@@ -282,11 +280,12 @@ class _RackPicker extends StatelessWidget {
             style: Type.eyebrow.copyWith(color: palette.faded),
           ),
         ),
-        const PerforatedRule(),
-        for (var i = 0; i < exercises.length; i++) ...[
-          _RackRow(exercise: exercises[i], onTap: () => onSelect(exercises[i])),
-          if (i != exercises.length - 1) const PerforatedRule(indent: Space.lg),
-        ],
+        const SizedBox(height: Space.sm),
+        for (final exercise in exercises)
+          _RackRow(
+            exercise: exercise,
+            onTap: () => onSelect(exercise),
+          ),
       ],
     );
   }
@@ -305,29 +304,34 @@ class _RackRow extends StatelessWidget {
         ? 'No sets yet'
         : '${Load.format(exercise.lastWeightG!)}  ×  ${exercise.lastReps ?? 0}';
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.lg,
-            vertical: Space.md + 4,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  exercise.name,
-                  style: Type.itemLarge.copyWith(color: palette.print),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.sm),
+      child: Material(
+        color: HomePalette.tile,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.lg,
+              vertical: Space.md + 4,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    exercise.name,
+                    style: Type.itemLarge.copyWith(color: palette.print),
+                  ),
                 ),
-              ),
-              const SizedBox(width: Space.md),
-              Text(
-                last,
-                style: Type.mono.copyWith(color: palette.faded),
-              ),
-            ],
+                const SizedBox(width: Space.md),
+                Text(
+                  last,
+                  style: Type.mono.copyWith(color: palette.faded),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -488,6 +492,8 @@ class _ValueField extends StatelessWidget {
 
     return Material(
       color: palette.paperShade,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(

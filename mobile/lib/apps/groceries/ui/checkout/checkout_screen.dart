@@ -6,7 +6,6 @@ import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/core/util/money.dart';
 import 'package:shopping_list/apps/groceries/ui/checkout/receipt_capture.dart';
@@ -165,8 +164,6 @@ class _CheckoutForm extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: Space.md),
-        const PerforatedRule(),
         const SizedBox(height: Space.xl),
 
         Text('TOTAL PAID', style: Type.eyebrow.copyWith(color: palette.faded)),
@@ -218,8 +215,7 @@ class _CheckoutForm extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: Space.sm),
-        const PerforatedRule(),
+        const SizedBox(height: Space.lg),
 
         if (error != null) ...[
           const SizedBox(height: Space.sm),

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/gym/data/models/progress.dart';
 import 'package:shopping_list/apps/gym/state/providers.dart';
 import 'package:shopping_list/apps/gym/ui/day_pass_screen.dart';
 import 'package:shopping_list/apps/gym/ui/workout_plot.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/load.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One movement's history across workouts.
 ///
@@ -90,29 +90,26 @@ class _ExerciseProgressScreenState
                 style: Type.caption.copyWith(color: palette.carbon),
               ),
               const SizedBox(height: Space.lg),
-              const PerforatedRule(),
-              const SizedBox(height: Space.lg),
               Text(
                 'WORKOUTS',
                 style: Type.eyebrow.copyWith(color: palette.faded),
               ),
               const SizedBox(height: Space.md),
-              for (var i = marks.length - 1; i >= 0; i--) ...[
-                if (i != marks.length - 1) ...[
-                  const PerforatedRule(indent: 0),
-                ],
-                _WorkoutRow(
-                  mark: marks[i],
-                  byReps: byReps,
-                  selected: i == selected,
-                  onTap: () => setState(() => _selected = i),
-                  onOpenPass: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => DayPassScreen(day: marks[i].day),
+              for (var i = marks.length - 1; i >= 0; i--)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Space.sm),
+                  child: _WorkoutRow(
+                    mark: marks[i],
+                    byReps: byReps,
+                    selected: i == selected,
+                    onTap: () => setState(() => _selected = i),
+                    onOpenPass: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DayPassScreen(day: marks[i].day),
+                      ),
                     ),
                   ),
                 ),
-              ],
             ],
           );
         },
@@ -168,8 +165,6 @@ class _EmptyHistory extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PerforatedRule(),
-          const SizedBox(height: Space.lg),
           Text(
             'No workouts yet.',
             style: Type.display.copyWith(color: palette.print, fontSize: 26),
@@ -204,18 +199,30 @@ class _WorkoutRow extends StatelessWidget {
     final setWord = mark.sets == 1 ? 'set' : 'sets';
 
     return Material(
-      color: selected ? palette.paperShade : Colors.transparent,
+      color: selected ? HomePalette.tile : HomePalette.ground,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         onLongPress: onOpenPass,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: Space.md),
+          padding: const EdgeInsets.fromLTRB(14, Space.md, Space.sm, Space.md),
           child: Row(
             children: [
               Container(
-                width: 3,
-                height: 26,
-                color: selected ? palette.carbon : palette.perforation,
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: palette.carbon.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: SolarIcon(
+                  SolarIcons.Dumbbell,
+                  weight: SolarIconWeight.linear,
+                  size: 16,
+                  color: selected ? palette.carbon : palette.faded,
+                ),
               ),
               const SizedBox(width: Space.md),
               Expanded(
@@ -237,8 +244,12 @@ class _WorkoutRow extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Open this day',
-                icon: const AppIcon(SolarIcons.AltArrowRight),
-                color: palette.faded,
+                icon: SolarIcon(
+                  SolarIcons.AltArrowRight,
+                  weight: SolarIconWeight.linear,
+                  color: palette.faded,
+                  size: 18,
+                ),
                 onPressed: onOpenPass,
               ),
             ],

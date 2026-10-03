@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/core/design/theme.dart';
+import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// Arrival or departure, as a number in ink. No plate, no border — the colour
@@ -20,7 +21,7 @@ class MoveChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (amountMinor == 0) return const SizedBox.shrink();
-    final brightness = Theme.of(context).brightness;
+    final brightness = context.stampBrightness;
     final arriving = amountMinor > 0;
     final ink = arriving
         ? CategoryInk.pine.of(brightness)

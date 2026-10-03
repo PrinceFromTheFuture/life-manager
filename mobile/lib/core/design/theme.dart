@@ -128,7 +128,18 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
     onSurface: p.print,
   );
 
-  final onInk = brightness == Brightness.light ? p.paper : p.print;
+  final primaryFill = p.carbon;
+  final primaryText = primaryFill.computeLuminance() > 0.55
+      ? const Color(0xFF090909)
+      : Colors.white;
+  final secondaryFill = Color.alphaBlend(
+    primaryFill.withValues(alpha: 0.12),
+    const Color(0xFFF3F3F1),
+  );
+  const secondaryText = Color(0xFF090909);
+  const buttonShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(14)),
+  );
 
   return ThemeData(
     useMaterial3: true,
@@ -177,43 +188,39 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
 
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: p.carbon,
-        disabledBackgroundColor: p.carbon.withValues(alpha: 0.38),
-        foregroundColor: onInk,
-        disabledForegroundColor: onInk.withValues(alpha: 0.7),
+        backgroundColor: primaryFill,
+        disabledBackgroundColor: primaryFill.withValues(alpha: 0.38),
+        foregroundColor: primaryText,
+        disabledForegroundColor: primaryText.withValues(alpha: 0.7),
         textStyle: Type.button,
         minimumSize: const Size(0, Plate.height),
         padding: Plate.padding,
         iconSize: 18,
-        overlayColor: p.scorch.withValues(alpha: 0.22),
+        overlayColor: primaryText.withValues(alpha: 0.12),
         splashFactory: InkRipple.splashFactory,
         elevation: 0,
         shadowColor: Colors.transparent,
-        side: BorderSide(color: Plate.edge(p), width: 1.5),
-        shape: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(color: Plate.edge(p), width: 1.5),
-          insetColor: Plate.inset(onInk),
-        ),
+        side: BorderSide.none,
+        shape: buttonShape,
       ),
     ),
 
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        backgroundColor: p.paperShade,
-        disabledBackgroundColor: p.paperShade.withValues(alpha: 0.5),
-        foregroundColor: p.print,
-        disabledForegroundColor: p.faded,
+        backgroundColor: secondaryFill,
+        disabledBackgroundColor: secondaryFill.withValues(alpha: 0.5),
+        foregroundColor: secondaryText,
+        disabledForegroundColor: secondaryText.withValues(alpha: 0.45),
         textStyle: Type.button,
         minimumSize: const Size(0, Plate.height),
         padding: Plate.padding,
         iconSize: 18,
-        overlayColor: p.scorch.withValues(alpha: 0.18),
+        overlayColor: secondaryText.withValues(alpha: 0.08),
         splashFactory: InkRipple.splashFactory,
         elevation: 0,
         shadowColor: Colors.transparent,
-        side: BorderSide(color: p.print, width: 1.5),
-        shape: const InkPlateBorder(borderRadius: Radii.key),
+        side: BorderSide.none,
+        shape: buttonShape,
       ),
     ),
 
@@ -279,10 +286,9 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
     ),
 
-    // The hub capture is a plate, same as every other command key.
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: p.print,
-      foregroundColor: p.paper,
+      backgroundColor: primaryFill,
+      foregroundColor: primaryText,
       elevation: 0,
       focusElevation: 0,
       hoverElevation: 0,
@@ -293,11 +299,7 @@ ThemeData buildTheme(ThermalPalette p, Brightness brightness) {
         horizontal: Space.lg,
         vertical: Space.md,
       ),
-      shape: InkPlateBorder(
-        borderRadius: Radii.key,
-        side: BorderSide(color: Plate.edge(p), width: 1.5),
-        insetColor: Plate.inset(onInk),
-      ),
+      shape: buttonShape,
     ),
   );
 }

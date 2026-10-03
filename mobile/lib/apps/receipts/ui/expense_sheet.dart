@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -20,10 +21,9 @@ import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/settings/api_keys.dart';
 import 'package:shopping_list/core/util/money.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// Recording an expense.
 ///
@@ -494,7 +494,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
           builder: (context) => AlertDialog(
             backgroundColor: palette.paper,
             surfaceTintColor: Colors.transparent,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             titleTextStyle:
                 Type.display.copyWith(fontSize: 20, color: palette.print),
             contentTextStyle: Type.body.copyWith(color: palette.print),
@@ -573,10 +573,10 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
       child: Scaffold(
         backgroundColor: palette.paper,
         appBar: AppBar(
-          leading: IconButton(
-            icon: const AppIcon(SolarIcons.CloseCircle),
-            tooltip: 'Discard',
-            onPressed: () => unawaited(_requestLeave(fromCloseButton: true)),
+          leading: NightPlate(
+            icon: SolarIcons.CloseCircle,
+            label: 'Discard',
+            onTap: () => unawaited(_requestLeave(fromCloseButton: true)),
           ),
           title: Text(_isEditing ? 'Edit expense' : 'New expense'),
         ),
@@ -599,7 +599,6 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                 active: _keypadOpen,
                 onTap: () => setState(() => _keypadOpen = true),
               ),
-              const PerforatedRule(),
               const SizedBox(height: Space.lg),
               _Block(
                 label: 'WHERE',
@@ -624,7 +623,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                     ),
                     Row(
                       children: [
-                        AppIcon(SolarIcons.MapPoint,
+                        SolarIcon(SolarIcons.MapPoint,
                             size: 15, color: palette.faded),
                         const SizedBox(width: Space.xs),
                         Expanded(
@@ -748,7 +747,7 @@ class _ExpenseSheetState extends ConsumerState<ExpenseSheet> {
                       _showNote = true;
                       _keypadOpen = false;
                     }),
-                    icon: const AppIcon(SolarIcons.AddCircle, size: 18),
+                    icon: const SolarIcon(SolarIcons.AddCircle, size: 18),
                     label: const Text('Add a note'),
                   ),
                 ),
@@ -817,7 +816,6 @@ class _CaptureStage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PerforatedRule(),
           const SizedBox(height: Space.lg),
           Text(
             'Every expense keeps its receipt.',
@@ -833,7 +831,7 @@ class _CaptureStage extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: busy ? null : onCamera,
-              icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 20),
+              icon: const SolarIcon(SolarIcons.CameraMinimalistic, size: 20),
               label: const Text('Photograph the receipt'),
             ),
           ),
@@ -903,7 +901,6 @@ class _ScanChoiceStageState extends State<_ScanChoiceStage> {
             ),
           ),
           const SizedBox(height: Space.lg),
-          const PerforatedRule(),
           const SizedBox(height: Space.lg),
           SizedBox(
             width: double.infinity,
@@ -978,7 +975,7 @@ class _AmountRow extends StatelessWidget {
             ),
             const Spacer(),
             // A quiet marker that this is editable, and which state it's in.
-            AppIcon(
+            SolarIcon(
               active ? SolarIcons.Minimize : SolarIcons.Calculator,
               size: 20,
               color: active ? palette.carbon : palette.faded,
@@ -1007,7 +1004,6 @@ class _Block extends StatelessWidget {
         const SizedBox(height: Space.sm),
         child,
         const SizedBox(height: Space.md),
-        const PerforatedRule(),
         const SizedBox(height: Space.lg),
       ],
     );
@@ -1246,7 +1242,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final fill = ink?.of(Theme.of(context).brightness) ?? palette.carbon;
+    final fill = ink?.of(context.stampBrightness) ?? palette.carbon;
     final onFill = palette.paper;
 
     return Material(
@@ -1317,7 +1313,7 @@ class _ReceiptStrip extends ConsumerWidget {
           const SizedBox(height: Space.sm),
           OutlinedButton.icon(
             onPressed: onRetake,
-            icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
+            icon: const SolarIcon(SolarIcons.CameraMinimalistic, size: 18),
             label: const Text('Photograph it'),
           ),
         ],

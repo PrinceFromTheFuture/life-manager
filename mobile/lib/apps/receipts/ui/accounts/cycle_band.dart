@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// Where a credit card is, in the only two dimensions that matter.
@@ -91,7 +91,12 @@ class CycleBand extends StatelessWidget {
                 child: Stack(
                   children: [
                     const Positioned.fill(
-                      child: Center(child: PerforatedRule()),
+                      child: Center(
+                        child: ColoredBox(
+                          color: HomePalette.line,
+                          child: SizedBox(height: 1, width: double.infinity),
+                        ),
+                      ),
                     ),
                     Positioned(
                       left: (constraints.maxWidth - 1.5) * time,

@@ -21,27 +21,37 @@ final calendarRepositoryProvider = Provider<CalendarRepository>(
 /// Bumped after every write so the board, registry and places refresh.
 final calendarTickProvider = StateProvider<int>((ref) => 0);
 
-final calendarTabProvider = StateProvider<int>((ref) => 0);
-
-final boardDayProvider = StateProvider<DateTime>(
-  (ref) => DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  ),
+/// Sunday of the week on screen. Deep links and the AI read it; the screen
+/// owns the transition and writes it once a week has landed.
+final calendarWeekProvider = StateProvider<DateTime>(
+  (ref) => Days.startOfWeek(DateTime.now()),
 );
 
-enum BoardGrain { day, week }
-
-final boardGrainProvider = StateProvider<BoardGrain>((ref) => BoardGrain.day);
-
+/// One week of tickets, keyed by its Sunday.
+///
+/// A write bumps [calendarTickProvider]; the provider then reloads with the
+/// previous value still attached, so the grid repaints in place rather than
+/// flashing empty. Neighbouring weeks are watched by the grid, which keeps
+/// them warm for a week switch.
 final weekTicketsProvider =
     FutureProvider.autoDispose.family<List<Ticket>, DateTime>((ref, day) {
   ref.watch(calendarTickProvider);
   final start = Days.startOfWeek(day);
   return ref.watch(calendarRepositoryProvider).ticketsOn(
         from: start,
-        to: start.add(const Duration(days: 7)),
+        to: Days.addDays(start, 7),
+      );
+});
+
+/// Tickets for the six-week block a month view paints, keyed by the month's
+/// first day.
+final monthTicketsProvider =
+    FutureProvider.autoDispose.family<List<Ticket>, DateTime>((ref, month) {
+  ref.watch(calendarTickProvider);
+  final start = Days.startOfWeek(DateTime(month.year, month.month));
+  return ref.watch(calendarRepositoryProvider).ticketsOn(
+        from: start,
+        to: Days.addDays(start, 42),
       );
 });
 
@@ -58,12 +68,6 @@ final seriesProvider = FutureProvider<List<Series>>((ref) {
 final todayTicketsProvider = FutureProvider<List<Ticket>>((ref) {
   ref.watch(calendarTickProvider);
   return ref.watch(calendarRepositoryProvider).today();
-});
-
-final dayTicketsProvider =
-    FutureProvider.autoDispose.family<List<Ticket>, DateTime>((ref, day) {
-  ref.watch(calendarTickProvider);
-  return ref.watch(calendarRepositoryProvider).ticketsOnDay(day);
 });
 
 class CalendarController {
@@ -182,6 +186,48 @@ class CalendarController {
       startsAt: startsAt,
       durationMinutes: durationMinutes,
     );
+    _tick();
+  }
+
+  /// Put a moved ticket back exactly as [before] had it.
+  ///
+  /// A block takes its old time again. A registry occurrence that had no
+  /// override loses the one the move wrote; one that already had an override
+  /// gets that override back, title and stamp included.
+  Future<void> undoMove(Ticket before) async {
+    final blockId = before.blockId;
+    if (blockId != null) {
+      final existing = await _repo.blockById(blockId);
+      if (existing == null) return;
+      await _repo.updateBlock(
+        existing.copyWith(
+          startsAt: before.startsAt,
+          durationMinutes: before.durationMinutes,
+        ),
+      );
+      _tick();
+      return;
+    }
+    final seriesId = before.seriesId;
+    if (seriesId == null) return;
+    if (before.overridden) {
+      await _repo.moveOccurrence(
+        seriesId: seriesId,
+        originalStart: before.originalStart,
+        startsAt: before.startsAt,
+        durationMinutes: before.durationMinutes,
+        locationId: before.locationId,
+        title: before.title,
+        note: before.note,
+        inkId: before.inkId,
+        iconId: before.iconId,
+      );
+    } else {
+      await _repo.clearOverride(
+        seriesId: seriesId,
+        originalStart: before.originalStart,
+      );
+    }
     _tick();
   }
 

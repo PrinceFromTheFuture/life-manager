@@ -9,6 +9,7 @@ import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
 import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/db/migration.dart';
+import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Expense tracking, as a mini-app.
@@ -36,6 +37,10 @@ class ReceiptsApp implements MiniApp {
   @override
   SolarIconData get icon => SolarIcons.BillList;
 
+  /// Every receipts route, including sheets pushed off the shell.
+  @override
+  bool get useNightTheme => true;
+
   @override
   ModuleMigrations get migrations => receiptsMigrations;
 
@@ -50,7 +55,7 @@ class ReceiptsApp implements MiniApp {
   @override
   Widget buildActivityRow(BuildContext context, ActivityEntry entry) {
     return ActivityRowShell(
-      ink: ink.of(Theme.of(context).brightness),
+      ink: ink.of(context.stampBrightness),
       title: entry.title,
       subtitle: entry.subtitle,
       amountMinor: entry.amountMinor,

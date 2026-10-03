@@ -7,9 +7,9 @@ import 'package:shopping_list/apps/gym/data/models/progress.dart';
 import 'package:shopping_list/apps/gym/state/providers.dart';
 import 'package:shopping_list/apps/gym/ui/exercise_progress_screen.dart';
 import 'package:shopping_list/apps/gym/ui/workout_plot.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/load.dart';
 
 /// Per-exercise progress across workouts, and this week's training.
@@ -53,20 +53,14 @@ class ProgressScreen extends ConsumerWidget {
                     orElse: () => const SizedBox.shrink(),
                   ),
                   const SizedBox(height: Space.lg),
-                  const PerforatedRule(),
-                  const SizedBox(height: Space.xl),
                   Text(
                     'BY EXERCISE',
                     style: Type.eyebrow.copyWith(color: palette.faded),
                   ),
                   const SizedBox(height: Space.lg),
-                  for (var i = 0; i < items.length; i++) ...[
-                    _ExerciseProgressRow(item: items[i]),
-                    if (i != items.length - 1) ...[
-                      const SizedBox(height: Space.md),
-                      const PerforatedRule(),
-                      const SizedBox(height: Space.md),
-                    ],
+                  for (final item in items) ...[
+                    _ExerciseProgressRow(item: item),
+                    const SizedBox(height: Space.sm),
                   ],
                 ],
               ),
@@ -87,8 +81,6 @@ class _EmptyProgress extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PerforatedRule(),
-          const SizedBox(height: Space.lg),
           Text(
             'Nothing to show yet.',
             style: Type.display.copyWith(color: palette.print, fontSize: 26),
@@ -212,46 +204,57 @@ class _ExerciseProgressRow extends StatelessWidget {
             ? 'last ${item.recentWorkouts.length} of ${item.workoutCount}'
             : '${item.workoutCount} workouts';
 
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ExerciseProgressScreen(item: item),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.xs),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.sm),
+      child: Material(
+        color: HomePalette.tile,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ExerciseProgressScreen(item: item),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    item.exercise.name,
-                    style: Type.item.copyWith(color: palette.print),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.exercise.name,
+                        style: Type.item.copyWith(color: palette.print),
+                      ),
+                    ),
+                    Text(
+                      workouts,
+                      style: Type.mono.copyWith(
+                        color: palette.faded,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: Space.xs),
                 Text(
-                  workouts,
-                  style: Type.mono.copyWith(color: palette.faded, fontSize: 12),
+                  'Last $last$lastWhen',
+                  style: Type.caption.copyWith(color: palette.faded),
                 ),
+                if (delta != null)
+                  Text(
+                    delta,
+                    style: Type.caption.copyWith(color: palette.carbon),
+                  ),
+                if (item.recentWorkouts.isNotEmpty) ...[
+                  const SizedBox(height: Space.sm),
+                  WorkoutPlot(marks: item.recentWorkouts, height: 64),
+                ],
               ],
             ),
-            const SizedBox(height: Space.xs),
-            Text(
-              'Last $last$lastWhen',
-              style: Type.caption.copyWith(color: palette.faded),
-            ),
-            if (delta != null)
-              Text(
-                delta,
-                style: Type.caption.copyWith(color: palette.carbon),
-              ),
-            if (item.recentWorkouts.isNotEmpty) ...[
-              const SizedBox(height: Space.sm),
-              WorkoutPlot(marks: item.recentWorkouts, height: 64),
-            ],
-          ],
+          ),
         ),
       ),
     );

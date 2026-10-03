@@ -40,5 +40,16 @@ const ModuleMigrations coreMigrations = ModuleMigrations(
         ''',
       ],
     ),
+    // Tasks shipped, then left. Drop its tables so a phone that already
+    // opened the app does not keep a dead module around.
+    Migration(
+      version: 2,
+      statements: [
+        'DROP TABLE IF EXISTS tasks_items',
+        'DROP TABLE IF EXISTS tasks_projects',
+        "DELETE FROM activity WHERE app_id = 'tasks'",
+        "DELETE FROM schema_versions WHERE module_id = 'tasks'",
+      ],
+    ),
   ],
 );

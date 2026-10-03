@@ -2,13 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Photographs or picks the receipt for a trip.
 ///
@@ -74,7 +75,12 @@ class _ReceiptCaptureState extends ConsumerState<ReceiptCapture> {
           flex: 2,
           child: FilledButton.icon(
             onPressed: _busy ? null : () => _pick(ImageSource.camera),
-            icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 20),
+            icon: const SolarIcon(
+              SolarIcons.CameraMinimalistic,
+              weight: SolarIconWeight.linear,
+              color: HomePalette.ink,
+              size: 18,
+            ),
             label: const Text('Photograph receipt'),
           ),
         ),

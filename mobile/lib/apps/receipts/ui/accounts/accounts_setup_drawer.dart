@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
@@ -10,8 +11,6 @@ import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/inset_drawer.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// The two setup actions that almost never happen, so they do not live as
 /// separate keys on the accounts page. One New button opens this chooser.
@@ -77,7 +76,6 @@ class _NewThingChooser extends StatelessWidget {
             caption: 'Bank, cash, a card you own.',
             onTap: () => scope.open('account'),
           ),
-          const PerforatedRule(),
           _ChooserRow(
             icon: SolarIcons.Card,
             title: 'Payment method',
@@ -113,7 +111,7 @@ class _ChooserRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: Space.md),
         child: Row(
           children: [
-            AppIcon(icon, size: 22, color: palette.print),
+            SolarIcon(icon, size: 22, color: palette.print),
             const SizedBox(width: Space.md),
             Expanded(
               child: Column(
@@ -128,7 +126,7 @@ class _ChooserRow extends StatelessWidget {
                 ],
               ),
             ),
-            AppIcon(SolarIcons.AltArrowRight, color: palette.faded, size: 20),
+            SolarIcon(SolarIcons.AltArrowRight, color: palette.faded, size: 20),
           ],
         ),
       ),
@@ -322,7 +320,6 @@ class _PickAccountDrawer extends ConsumerWidget {
           else
             for (final account in accounts) ...[
               _AccountPick(account: account),
-              if (account != accounts.last) const PerforatedRule(),
             ],
         ],
       ),
@@ -351,7 +348,7 @@ class _AccountPick extends StatelessWidget {
                 style: Type.item.copyWith(color: palette.print),
               ),
             ),
-            AppIcon(SolarIcons.AltArrowRight, color: palette.faded, size: 20),
+            SolarIcon(SolarIcons.AltArrowRight, color: palette.faded, size: 20),
           ],
         ),
       ),

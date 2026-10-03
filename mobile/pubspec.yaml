@@ -1,7 +1,7 @@
 name: shopping_list
 description: A personal grocery shopping list — build it, shop it, close it out.
 publish_to: 'none'
-version: 1.0.9+10
+version: 1.0.11+12
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -35,9 +35,8 @@ dependencies:
   url_launcher: ^6.3.2
   archive: ^4.0.9
   flutty_solar_icons: ^1.0.4
-  flutter_local_notifications: ^18.0.1
-  flutter_timezone: ^4.1.0
-  timezone: ^0.10.0
+  # Home bar: the black pill swings, and the active label fades in.
+  flutter_animate: ^4.5.2
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +47,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/home/profile.jpg
 
   # Fonts are bundled, never fetched at runtime — the app has to look right
   # standing in a store with no signal.

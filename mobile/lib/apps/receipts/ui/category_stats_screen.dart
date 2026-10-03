@@ -8,7 +8,6 @@ import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/stats_charts.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// One category's plot across the span statistics is standing on, then the
@@ -104,7 +103,6 @@ class _CategoryStatsScreenState extends State<CategoryStatsScreen> {
                   style: Type.caption.copyWith(color: palette.faded),
                 ),
                 const SizedBox(height: Space.lg),
-                const PerforatedRule(),
                 const SizedBox(height: Space.lg),
                 Text(
                   'SLIPS',
@@ -113,7 +111,6 @@ class _CategoryStatsScreenState extends State<CategoryStatsScreen> {
                 const SizedBox(height: Space.md),
                 for (final slip in slips) ...[
                   _Row(expense: slip, ink: widget.ink),
-                  const PerforatedRule(),
                 ],
               ],
             ),
@@ -140,7 +137,6 @@ class _EmptyCategory extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PerforatedRule(),
           const SizedBox(height: Space.lg),
           Text(
             'Nothing in this pad.',

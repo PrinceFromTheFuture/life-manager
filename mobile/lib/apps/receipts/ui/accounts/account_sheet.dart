@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/account.dart';
@@ -9,8 +10,7 @@ import 'package:shopping_list/apps/receipts/ui/widgets/sheet_parts.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// Setting up an account, or correcting what it started with.
 ///
@@ -125,7 +125,7 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
       builder: (context) => AlertDialog(
         backgroundColor: context.thermal.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Retire this account?'),
         content: const Text(
           'It stops being offered, along with everything you pay from it. Its '
@@ -156,10 +156,10 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
     return Scaffold(
       backgroundColor: palette.paper,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const AppIcon(SolarIcons.CloseCircle),
-          tooltip: 'Discard',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: NightPlate(
+          icon: SolarIcons.CloseCircle,
+          label: 'Discard',
+          onTap: () => Navigator.of(context).pop(),
         ),
         title: Text(_isEditing ? 'Edit account' : 'New account'),
       ),
@@ -234,7 +234,6 @@ class _AccountSheetState extends ConsumerState<AccountSheet> {
                   style: Type.caption.copyWith(color: palette.faded),
                 ),
                 const SizedBox(height: Space.md),
-                const PerforatedRule(),
                 if (_isEditing) ...[
                   const SizedBox(height: Space.xl),
                   Align(
@@ -292,7 +291,7 @@ class _MarkPad extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final ink = mark.ink.of(Theme.of(context).brightness);
+    final ink = mark.ink.of(context.stampBrightness);
 
     return Semantics(
       button: true,
@@ -300,20 +299,14 @@ class _MarkPad extends StatelessWidget {
       label: mark.label,
       child: Material(
         color: selected ? ink : palette.paperShade,
-        shape: RoundedRectangleBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(
-            color: selected ? palette.print : Colors.transparent,
-            width: 2,
-          ),
-        ),
+        shape: const CircleBorder(),
         child: InkWell(
           onTap: onTap,
-          borderRadius: Radii.key,
+          customBorder: const CircleBorder(),
           child: SizedBox(
             width: 44,
             height: 44,
-            child: AppIcon(
+            child: SolarIcon(
               mark.icon,
               size: 20,
               color: selected ? palette.paper : palette.print,

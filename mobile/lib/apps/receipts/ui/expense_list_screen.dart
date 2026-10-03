@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/receipts/data/export/expense_exporter.dart';
@@ -11,12 +12,12 @@ import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/widgets/margin_code.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// Everything you've spent this month, newest first.
 ///
@@ -89,7 +90,7 @@ Future<ExportScope?> _pickExportScope(BuildContext context) {
     builder: (context) => AlertDialog(
       backgroundColor: palette.paper,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       titleTextStyle: Type.display.copyWith(fontSize: 20, color: palette.print),
       contentTextStyle: Type.body.copyWith(color: palette.print),
       title: const Text('Export this month'),
@@ -160,10 +161,11 @@ class MonthSelector extends ConsumerWidget {
           const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, Space.md),
       child: Row(
         children: [
-          IconButton(
-            icon: const AppIcon(SolarIcons.AltArrowLeft),
-            tooltip: 'Previous month',
-            onPressed: () => ref.read(selectedMonthProvider.notifier).state =
+          NightPlate(
+            icon: SolarIcons.AltArrowLeft,
+            label: 'Previous month',
+            size: 36,
+            onTap: () => ref.read(selectedMonthProvider.notifier).state =
                 DateTime(month.year, month.month - 1),
           ),
           Expanded(
@@ -187,12 +189,13 @@ class MonthSelector extends ConsumerWidget {
               ),
             ),
           ),
-          IconButton(
-            icon: const AppIcon(SolarIcons.AltArrowRight),
-            tooltip: 'Next month',
+          NightPlate(
+            icon: SolarIcons.AltArrowRight,
+            label: 'Next month',
+            size: 36,
             // A future month is never useful — nothing has been logged there
             // yet, so stepping past "now" would just show an empty screen.
-            onPressed: isCurrentMonth
+            onTap: isCurrentMonth
                 ? null
                 : () => ref.read(selectedMonthProvider.notifier).state =
                     DateTime(month.year, month.month + 1),
@@ -242,7 +245,6 @@ class _MonthRoll extends ConsumerWidget {
             ],
           ),
         ),
-        const PerforatedRule(),
         Expanded(
           child: _ExpenseRoll(expenses: shown, sort: sort),
         ),
@@ -263,7 +265,7 @@ class _SortControl extends ConsumerWidget {
       tooltip: 'Sort',
       padding: EdgeInsets.zero,
       position: PopupMenuPosition.under,
-      color: palette.paper,
+      color: HomePalette.tile,
       surfaceTintColor: Colors.transparent,
       onSelected: (value) =>
           ref.read(receiptsSortProvider.notifier).state = value,
@@ -286,7 +288,13 @@ class _SortControl extends ConsumerWidget {
             sort.label,
             style: Type.caption.copyWith(color: palette.carbon),
           ),
-          AppIcon(SolarIcons.AltArrowDown, size: 18, color: palette.carbon),
+          const SizedBox(width: 2),
+          SolarIcon(
+            SolarIcons.AltArrowDown,
+            weight: SolarIconWeight.linear,
+            size: 16,
+            color: palette.carbon,
+          ),
         ],
       ),
     );
@@ -324,8 +332,6 @@ class _ExpenseRoll extends ConsumerWidget {
       children: [
         for (final group in groups) ...[
           const SizedBox(height: Space.lg),
-          const TearEdge(),
-          const SizedBox(height: Space.md),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Space.lg),
             child: Text(
@@ -334,15 +340,12 @@ class _ExpenseRoll extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: Space.sm),
-          for (final expense in group.value) ...[
+          for (final expense in group.value)
             _ExpenseRow(
               expense: expense,
               methodNames: methodNames,
               categoryInk: categoryInks[expense.categoryId],
             ),
-            if (expense != group.value.last)
-              const PerforatedRule(indent: Space.lg),
-          ],
         ],
       ],
     );
@@ -404,76 +407,100 @@ class _ExpenseRow extends ConsumerWidget {
     final palette = context.thermal;
     final subtitle = _subtitle(expense, methodNames);
 
-    return Dismissible(
-      key: ValueKey('expense-${expense.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: palette.paperShade,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: Space.lg),
-        child: AppIcon(SolarIcons.TrashBinMinimalistic, color: palette.faded),
-      ),
-      // Unlike a list item, this deletes a photo too — so it asks first rather
-      // than offering an undo it could not honour.
-      confirmDismiss: (_) =>
-          confirmDeleteExpense(context, hasReceipt: expense.hasReceipt),
-      onDismissed: (_) =>
-          ref.read(expensesProvider.notifier).remove(expense.id!),
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ExpenseDetailScreen(expenseId: expense.id!),
+    final ink = categoryInk?.of(Brightness.dark) ?? HomePalette.bone;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.sm),
+      child: Dismissible(
+        key: ValueKey('expense-${expense.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: Space.lg),
+          decoration: BoxDecoration(
+            color: HomePalette.tile,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const SolarIcon(
+            SolarIcons.TrashBinMinimalistic,
+            weight: SolarIconWeight.linear,
+            color: HomePalette.mist,
+            size: 20,
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.lg,
-            vertical: Space.md + 2,
-          ),
-          child: Row(
-            children: [
-              if (categoryInk != null) ...[
-                Container(
-                  width: 3,
-                  height: 26,
-                  color: categoryInk!.of(Theme.of(context).brightness),
-                ),
-                const SizedBox(width: Space.md),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      expense.title,
-                      style: Type.item.copyWith(color: palette.print),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+        // Unlike a list item, this deletes a photo too — so it asks first rather
+        // than offering an undo it could not honour.
+        confirmDismiss: (_) =>
+            confirmDeleteExpense(context, hasReceipt: expense.hasReceipt),
+        onDismissed: (_) =>
+            ref.read(expensesProvider.notifier).remove(expense.id!),
+        child: Material(
+          color: HomePalette.tile,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ExpenseDetailScreen(expenseId: expense.id!),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: ink.withValues(alpha: 0.16),
+                      shape: BoxShape.circle,
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: Type.caption.copyWith(color: palette.faded),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    child: Center(
+                      child: SolarIcon(
+                        expense.hasReceipt
+                            ? SolarIcons.Camera
+                            : SolarIcons.BillList,
+                        weight: SolarIconWeight.linear,
+                        color: ink,
+                        size: 18,
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                  const SizedBox(width: Space.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          expense.title,
+                          style: Type.item.copyWith(color: palette.print),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: Type.caption.copyWith(color: palette.faded),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: Space.md),
+                  if (expense.isAutoCreated) const MarginCode.standingOrder(),
+                  if (expense.isSplit)
+                    MarginCode.installments(expense.installments),
+                  Text(
+                    expense.amountLabel,
+                    style: Type.monoBold.copyWith(color: palette.print),
+                  ),
+                ],
               ),
-              const SizedBox(width: Space.md),
-              // Statement codes live in the numeric column, where a real
-              // statement prints them, so the title column carries no extra
-              // weight for facts that are true of one slip in fifty.
-              if (expense.isAutoCreated) const MarginCode.standingOrder(),
-              if (expense.isSplit) MarginCode.installments(expense.installments),
-              Text(
-                expense.amountLabel,
-                style: Type.monoBold.copyWith(color: palette.print),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -514,8 +541,6 @@ class _NoExpenses extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PerforatedRule(),
-            const SizedBox(height: Space.lg),
             Text(
               'No expenses this month.',
               style: Type.display.copyWith(color: palette.print, fontSize: 28),

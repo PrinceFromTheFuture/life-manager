@@ -85,4 +85,7 @@ abstract class MiniApp {
 
   /// Where tapping that row should go. Null means the row isn't tappable.
   Route<void>? routeForActivity(ActivityEntry entry);
+
+  /// Home's night ground. Off keeps the paper theme.
+  bool get useNightTheme => false;
 }

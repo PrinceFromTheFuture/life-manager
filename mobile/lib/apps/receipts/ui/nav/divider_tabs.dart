@@ -3,21 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 
-/// The sections of the receipts app, drawn as the tabbed dividers of an
-/// accordion receipt wallet.
-///
-/// There is no sliding indicator, no pill and no fill. A perforated rule runs
-/// the full width underneath the labels and simply **stops** under the active
-/// one: that gap is the whole affordance. The active divider reads as pulled
-/// forward, and the paper below it belongs to that section.
-///
-/// The notch is measured from the label rather than snapped to the column, so
-/// it hugs `SLIPS` and `ACCOUNTS` by different amounts — which is what makes it
-/// look torn out by hand instead of computed.
+/// The sections of the receipts app. The active word is bone, with a short
+/// bar under it. The rest of the row is a hairline.
 class DividerTabs extends StatelessWidget {
   const DividerTabs({
     super.key,
@@ -34,8 +25,6 @@ class DividerTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -63,10 +52,29 @@ class DividerTabs extends StatelessWidget {
                 ],
               ),
             ),
-            PerforatedRule(
-              color: palette.perforation,
-              notchStart: centre - notchWidth / 2,
-              notchWidth: notchWidth,
+            SizedBox(
+              height: 2,
+              width: width,
+              child: Stack(
+                children: [
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: ColoredBox(
+                      color: HomePalette.line,
+                      child: SizedBox(height: 1),
+                    ),
+                  ),
+                  Positioned(
+                    left: centre - notchWidth / 2,
+                    width: notchWidth,
+                    bottom: 0,
+                    height: 2,
+                    child: const ColoredBox(color: HomePalette.bone),
+                  ),
+                ],
+              ),
             ),
           ],
         );

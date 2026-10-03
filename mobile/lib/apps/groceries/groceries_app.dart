@@ -37,6 +37,9 @@ class GroceriesApp implements MiniApp {
   SolarIconData get icon => SolarIcons.Bag;
 
   @override
+  bool get useNightTheme => true;
+
+  @override
   ModuleMigrations get migrations => groceriesMigrations;
 
   @override

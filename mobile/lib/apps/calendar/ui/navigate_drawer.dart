@@ -3,16 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/calendar/data/models/place.dart';
 import 'package:shopping_list/apps/calendar/state/providers.dart';
+import 'package:shopping_list/apps/calendar/ui/drawer/drawer_parts.dart';
 import 'package:shopping_list/apps/calendar/ui/navigate_open.dart';
+import 'package:shopping_list/apps/calendar/ui/night.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/app_icon.dart';
-import 'package:shopping_list/core/design/widgets/inset_drawer.dart';
+import 'package:shopping_list/core/design/widgets/multi_view_drawer.dart';
 
+/// Every place, one tap from the maps app.
 Future<void> showNavigateDrawer(BuildContext context) {
-  return showInsetDrawer<void>(
+  return showMultiViewDrawer<void>(
     context: context,
-    primary: (_) => const _PlacesList(),
+    initial: 'go',
+    views: {'go': DrawerView(builder: (_) => const _PlacesList())},
   );
 }
 
@@ -21,57 +25,51 @@ class _PlacesList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
     final places = ref.watch(placesProvider);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.lg, 0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('GO', style: Type.eyebrow.copyWith(color: palette.faded)),
-          const SizedBox(height: Space.md),
-          places.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(Space.xl),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Text('$e', style: Type.caption.copyWith(color: palette.faded)),
-            data: (items) {
-              if (items.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: Space.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'No places yet.',
-                        style: Type.display.copyWith(
-                          fontSize: 22,
-                          color: palette.print,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const DrawerViewHeader(title: 'Go'),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.lg),
+            child: places.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.all(Space.xl),
+                child: Center(
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Night.mist),
+                ),
+              ),
+              error: (e, _) => Text('$e', style: Type.caption.copyWith(color: Night.mist)),
+              data: (items) {
+                if (items.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Space.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No places yet.',
+                          style: Type.display.copyWith(fontSize: 22, color: Night.bone),
                         ),
-                      ),
-                      const SizedBox(height: Space.sm),
-                      Text(
-                        'Name them in Calendar. Then this opens the map.',
-                        style: Type.body.copyWith(color: palette.faded),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: Space.sm),
+                        Text(
+                          'Pin them in Calendar under Places. Then this opens the map.',
+                          style: Type.body.copyWith(color: Night.mist),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return DrawerGroup(
+                  children: [for (final place in items) _PlaceRow(place: place)],
                 );
-              }
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final place in items)
-                    _PlaceRow(place: place),
-                ],
-              );
-            },
+              },
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -83,42 +81,16 @@ class _PlaceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final brightness = Theme.of(context).brightness;
-    final ink = place.ink.of(brightness);
-
-    return InkWell(
+    return DrawerRow(
+      icon: place.mark.icon,
+      iconColor: place.ink.dark,
+      label: place.title,
+      chevron: false,
+      trailing: const AppIcon(SolarIcons.Routing, size: 18, color: Night.mist),
       onTap: () async {
-        Navigator.of(context).pop();
+        MultiViewDrawer.of(context).close();
         await NavigateOpen.to(place);
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.md),
-        child: Row(
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: ink.withValues(alpha: 0.10),
-                borderRadius: Radii.key,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(Space.sm),
-                child: AppIcon(place.mark.icon, size: 20, color: ink),
-              ),
-            ),
-            const SizedBox(width: Space.md),
-            Expanded(
-              child: Text(
-                place.title,
-                style: Type.item.copyWith(color: palette.print),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            AppIcon(SolarIcons.Route, size: 18, color: palette.faded),
-          ],
-        ),
-      ),
     );
   }
 }

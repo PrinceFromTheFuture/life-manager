@@ -37,7 +37,7 @@ class ChangeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final brightness = Theme.of(context).brightness;
+    final brightness = context.stampBrightness;
     final up = deltaMinor > 0;
     final flat = deltaMinor == 0;
     final ink = flat

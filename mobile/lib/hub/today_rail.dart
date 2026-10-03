@@ -6,7 +6,7 @@ import 'package:shopping_list/apps/calendar/data/clock.dart';
 import 'package:shopping_list/apps/calendar/data/models/place.dart';
 import 'package:shopping_list/apps/calendar/data/models/ticket.dart';
 import 'package:shopping_list/apps/calendar/state/providers.dart';
-import 'package:shopping_list/apps/calendar/ui/calendar_shell.dart';
+import 'package:shopping_list/apps/calendar/ui/calendar_screen.dart';
 import 'package:shopping_list/core/app/mini_app_host.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
@@ -94,7 +94,7 @@ class _HubTicket extends StatelessWidget {
         onTap: () => openMiniApp(
           context,
           const CalendarApp(),
-          initialScreen: (_) => CalendarShell(occurredAt: ticket.startsAt),
+          initialScreen: (_) => CalendarScreen(occurredAt: ticket.startsAt),
         ),
         child: SizedBox(
           width: 168,

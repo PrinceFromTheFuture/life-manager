@@ -11,8 +11,7 @@ import 'package:shopping_list/apps/receipts/ui/widgets/sheet_parts.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// Editing a recurring payment. The day is when you usually pay it — a note
 /// to yourself, not a trigger. Nothing here writes a slip.
@@ -149,10 +148,10 @@ class _RecurringSheetState extends ConsumerState<RecurringSheet> {
     return Scaffold(
       backgroundColor: palette.paper,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const AppIcon(SolarIcons.CloseCircle),
-          tooltip: 'Discard',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: NightPlate(
+          icon: SolarIcons.CloseCircle,
+          label: 'Discard',
+          onTap: () => Navigator.of(context).pop(),
         ),
         title: Text(_isEditing ? 'Edit recurring' : 'New recurring'),
       ),
@@ -169,7 +168,6 @@ class _RecurringSheetState extends ConsumerState<RecurringSheet> {
                   sign: _isIncome ? '+' : null,
                   onTap: () => setState(() => _keypadOpen = true),
                 ),
-                const PerforatedRule(),
                 const SizedBox(height: Space.lg),
                 SheetBlock(
                   label: 'WHAT',

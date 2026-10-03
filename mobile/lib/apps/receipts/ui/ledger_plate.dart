@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
 
 /// A compact selectable plate for the receipts ledger.
 ///
@@ -29,31 +28,17 @@ class LedgerPlate extends StatelessWidget {
     final light = Theme.of(context).brightness == Brightness.light;
     final onInk = light ? palette.paper : palette.print;
     final fill = selected ? palette.carbon : palette.paperShade;
-    final edge = selected
-        ? Plate.edge(palette)
-        : palette.print.withValues(alpha: 0.35);
     final ink = selected ? onInk : palette.print;
 
     return Material(
       color: fill,
-      shape: InkPlateBorder(
-        borderRadius: Radii.key,
-        side: BorderSide(color: edge, width: 1.25),
-        insetColor: selected ? Plate.inset(onInk) : null,
-      ),
+      borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
           unawaited(HapticFeedback.selectionClick());
           onTap();
         },
-        overlayColor: WidgetStatePropertyAll(
-          palette.scorch.withValues(alpha: 0.22),
-        ),
-        customBorder: InkPlateBorder(
-          borderRadius: Radii.key,
-          side: BorderSide(color: edge, width: 1.25),
-        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Text(

@@ -13,8 +13,6 @@ import 'package:shopping_list/apps/receipts/data/models/payment_method.dart';
 import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_migrations.dart';
 import 'package:shopping_list/apps/calendar/data/calendar_migrations.dart';
-import 'package:shopping_list/apps/tasks/data/tasks_migrations.dart';
-import 'package:shopping_list/apps/tasks/data/tasks_repository.dart';
 import 'package:shopping_list/core/backup/app_backup.dart';
 import 'package:shopping_list/core/db/database.dart';
 import 'package:shopping_list/core/db/migration.dart';
@@ -44,7 +42,6 @@ void main() {
           groceriesMigrations,
           receiptsMigrations,
           gymMigrations,
-          tasksMigrations,
           calendarMigrations,
         ],
       );
@@ -90,7 +87,6 @@ void main() {
         receiptsMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['groceries'], 1);
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
-    expect(zip.manifest.schemaVersions['tasks'], tasksMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['calendar'], calendarMigrations.latestVersion);
     expect(zip.manifest.keyCount, 0);
 
@@ -265,7 +261,6 @@ void main() {
     expect(versions['groceries'], groceriesMigrations.latestVersion);
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
-    expect(versions['tasks'], tasksMigrations.latestVersion);
     expect(versions['calendar'], calendarMigrations.latestVersion);
 
     final gym = GymRepository(restored);
@@ -281,7 +276,7 @@ void main() {
     expect(await gym.volumeOnDay(DateTime(2026, 8, 13)), 80000 * 5);
   });
 
-  test('a current backup round-trips groceries, receipts, gym and tasks', () async {
+  test('a current backup round-trips groceries, receipts and gym', () async {
     final livePath = p.join(dir.path, 'live.db');
     final docs = Directory(p.join(dir.path, 'docs'));
     final database = await openCurrent(path: livePath);
@@ -316,18 +311,11 @@ void main() {
       day: DateTime(2026, 8, 18),
     );
 
-    final tasks = TasksRepository(database);
-    final project = await tasks.addProject(name: 'This app');
-    await tasks.addTask(projectId: project.id!, title: 'Ship a build');
-
     final zip = await AppBackup(database, images).build();
     expect(zip.manifest.tables['gym_sets'], 1);
     expect(zip.manifest.tables['trip_items'], 1);
-    expect(zip.manifest.tables['tasks_projects'], 1);
-    expect(zip.manifest.tables['tasks_items'], 1);
     expect(zip.manifest.tables['activity'], greaterThanOrEqualTo(1));
     expect(zip.manifest.schemaVersions['gym'], gymMigrations.latestVersion);
-    expect(zip.manifest.schemaVersions['tasks'], tasksMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['calendar'], calendarMigrations.latestVersion);
     expect(zip.manifest.schemaVersions['receipts'],
         receiptsMigrations.latestVersion);
@@ -360,12 +348,6 @@ void main() {
       await GymRepository(restored).volumeOnDay(DateTime(2026, 8, 18)),
       60000 * 8,
     );
-    final living = await TasksRepository(restored).livingProjects();
-    expect(living.single.name, 'This app');
-    expect(
-      (await TasksRepository(restored).openTasks(living.single.id!)).single.title,
-      'Ship a build',
-    );
     final cafe = (await ExpenseRepository(restored, restoredImages).recent())
         .single;
     expect(await restoredImages.exists(cafe.receiptPath), isTrue);
@@ -374,9 +356,8 @@ void main() {
     expect(versions['groceries'], groceriesMigrations.latestVersion);
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
-    expect(versions['tasks'], tasksMigrations.latestVersion);
     expect(versions['calendar'], calendarMigrations.latestVersion);
-    expect(versions['core'], 1);
+    expect(versions['core'], 2);
   });
 
   test('a current backup round-trips the whole financial manager', () async {
@@ -617,7 +598,6 @@ void main() {
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['groceries'], 1);
     expect(versions['gym'], 1);
-    expect(versions['tasks'], tasksMigrations.latestVersion);
     expect(versions['calendar'], calendarMigrations.latestVersion);
 
     final slips = await expenses.recent();
@@ -741,7 +721,6 @@ void main() {
     expect(versions['receipts'], receiptsMigrations.latestVersion);
     expect(versions['groceries'], groceriesMigrations.latestVersion);
     expect(versions['gym'], gymMigrations.latestVersion);
-    expect(versions['tasks'], tasksMigrations.latestVersion);
     expect(versions['calendar'], calendarMigrations.latestVersion);
 
     // Phone copy is receipts 7; this build rebuilds account_entries for

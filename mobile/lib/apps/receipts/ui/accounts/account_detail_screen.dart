@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
@@ -14,8 +15,7 @@ import 'package:shopping_list/apps/receipts/ui/accounts/ledger_entry_row.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/payment_method_sheet.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// One account, elevated: what it is, what pays from it, and every line
 /// that built the balance.
@@ -39,15 +39,16 @@ class AccountDetailScreen extends ConsumerWidget {
         title: Text(account?.name ?? 'Account'),
         actions: [
           if (account != null) ...[
-            IconButton(
-              tooltip: 'Edit account',
-              icon: const AppIcon(SolarIcons.PenNewSquare),
-              onPressed: () => AccountSheet.open(context, existing: account),
+            NightPlate(
+              icon: SolarIcons.PenNewSquare,
+              label: 'Edit account',
+              onTap: () => AccountSheet.open(context, existing: account),
             ),
-            IconButton(
-              tooltip: 'Retire account',
-              icon: const AppIcon(SolarIcons.TrashBinMinimalistic),
-              onPressed: () => _retire(context, ref, account.id!),
+            const SizedBox(width: Space.sm),
+            NightPlate(
+              icon: SolarIcons.TrashBinMinimalistic,
+              label: 'Retire account',
+              onTap: () => _retire(context, ref, account.id!),
             ),
           ],
           const SizedBox(width: Space.sm),
@@ -94,15 +95,10 @@ class AccountDetailScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: Space.sm),
-              const PerforatedRule(),
               if (entries.isEmpty)
                 const _NoEntries()
               else
-                for (final line in entries) ...[
-                  LedgerEntryRow(line: line),
-                  if (line != entries.last)
-                    const PerforatedRule(indent: Space.lg),
-                ],
+                for (final line in entries) LedgerEntryRow(line: line),
             ],
           );
         },
@@ -121,7 +117,7 @@ class AccountDetailScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: context.thermal.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Retire this account?'),
         content: const Text(
           'It stops being offered, along with everything you pay from it. Its '
@@ -194,7 +190,6 @@ class _PaysWith extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Space.sm),
-        const PerforatedRule(),
         if (methods.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, 0),
@@ -268,7 +263,7 @@ class _MethodRow extends StatelessWidget {
                       width: 32,
                       height: 32,
                     ),
-                    icon: const AppIcon(SolarIcons.InfoCircle, size: 18),
+                    icon: const SolarIcon(SolarIcons.InfoCircle, size: 18),
                     onPressed: () =>
                         openCycleQueueDrawer(context, method: method),
                   ),

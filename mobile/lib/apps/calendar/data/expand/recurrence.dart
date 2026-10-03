@@ -173,15 +173,15 @@ abstract final class Recurrence {
   }) {
     var day = startsOn;
     if (day.isBefore(from)) {
-      final skipped = from.difference(day).inDays;
+      final skipped = Days.between(day, from);
       final steps = (skipped / interval).ceil();
-      day = day.add(Duration(days: steps * interval));
+      day = Days.addDays(day, steps * interval);
     }
     final out = <DateTime>[];
     for (var i = 0; i < _maxSteps && day.isBefore(to); i++) {
       if (endsOn != null && day.isAfter(endsOn)) break;
       if (!day.isBefore(startsOn)) out.add(day);
-      day = day.add(Duration(days: interval));
+      day = Days.addDays(day, interval);
     }
     return out;
   }
@@ -200,10 +200,10 @@ abstract final class Recurrence {
     for (var i = 0; i < _maxSteps && day.isBefore(to); i++) {
       if (endsOn != null && day.isAfter(endsOn)) break;
       if (!day.isBefore(startsOn) && Weekdays.has(weekdays, day)) {
-        final weeks = Days.startOfWeek(day).difference(origin).inDays ~/ 7;
+        final weeks = Days.between(origin, Days.startOfWeek(day)) ~/ 7;
         if (weeks % interval == 0) out.add(day);
       }
-      day = day.add(const Duration(days: 1));
+      day = Days.addDays(day, 1);
     }
     return out;
   }

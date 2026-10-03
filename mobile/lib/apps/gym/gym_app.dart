@@ -35,6 +35,9 @@ class GymApp implements MiniApp {
   SolarIconData get icon => SolarIcons.DumbbellLargeMinimalistic;
 
   @override
+  bool get useNightTheme => true;
+
+  @override
   ModuleMigrations get migrations => gymMigrations;
 
   @override

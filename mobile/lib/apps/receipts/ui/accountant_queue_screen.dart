@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -12,8 +13,6 @@ import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// The out-tray of business slips for the accountant.
@@ -203,7 +202,6 @@ class _Tray extends StatelessWidget {
             ],
           ),
         ),
-        const PerforatedRule(),
       ],
     );
     return asSliver ? SliverToBoxAdapter(child: child) : child;
@@ -229,7 +227,7 @@ class _Tray extends StatelessWidget {
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, i) {
-          if (i.isOdd) return const PerforatedRule();
+          if (i.isOdd) return const SizedBox(height: Space.sm);
           final expense = expenses[i ~/ 2];
           return _SlipRow(
             expense: expense,
@@ -274,7 +272,7 @@ class _SlipRow extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AppIcon(SolarIcons.Plain, color: palette.carbon),
+            SolarIcon(SolarIcons.Plain, color: palette.carbon),
             const SizedBox(width: Space.sm),
             Text(
               stays ? 'SEND AGAIN' : 'SEND',
@@ -414,7 +412,7 @@ class _HandOverBar extends StatelessWidget {
         width: double.infinity,
         child: FilledButton.icon(
           onPressed: busy ? null : onPressed,
-          icon: const AppIcon(SolarIcons.Plain, size: 20),
+          icon: const SolarIcon(SolarIcons.Plain, size: 20),
           label: Text(
             busy
                 ? 'Handing over…'

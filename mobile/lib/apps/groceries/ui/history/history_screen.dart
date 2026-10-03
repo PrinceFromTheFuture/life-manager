@@ -2,16 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/trip.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/core/util/money.dart';
 import 'package:shopping_list/apps/groceries/ui/history/trip_detail_screen.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Past trips, as a stack of receipts torn off the roll.
 ///
@@ -63,7 +63,9 @@ class _TripSlip extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: context.thermal.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
         titleTextStyle:
             Type.display.copyWith(fontSize: 20, color: context.thermal.print),
         contentTextStyle: Type.body.copyWith(color: context.thermal.print),
@@ -98,9 +100,13 @@ class _TripSlip extends ConsumerWidget {
     final trip = summary.trip;
     final date = trip.completedAt ?? trip.startedAt;
 
-    return Column(
-      children: [
-        InkWell(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.lg, 0),
+      child: Material(
+        color: HomePalette.tile,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder: (_) => TripDetailScreen(tripId: trip.id!),
@@ -108,12 +114,7 @@ class _TripSlip extends ConsumerWidget {
           ),
           onLongPress: () => _confirmDelete(context, ref),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Space.lg,
-              Space.lg,
-              Space.lg,
-              Space.md,
-            ),
+            padding: const EdgeInsets.all(14),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -151,11 +152,7 @@ class _TripSlip extends ConsumerWidget {
             ),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(bottom: Space.sm),
-          child: TearEdge(),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -177,7 +174,12 @@ class _ReceiptThumb extends ConsumerWidget {
           border: Border.all(color: palette.perforation),
         ),
         alignment: Alignment.center,
-        child: AppIcon(SolarIcons.BillList, size: 18, color: palette.faded),
+        child: const SolarIcon(
+          SolarIcons.BillList,
+          weight: SolarIconWeight.linear,
+          size: 18,
+          color: HomePalette.mist,
+        ),
       );
     }
 
@@ -221,8 +223,6 @@ class _NoTrips extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PerforatedRule(),
-            const SizedBox(height: Space.lg),
             Text(
               'No trips yet.',
               style: Type.display.copyWith(color: palette.print, fontSize: 28),

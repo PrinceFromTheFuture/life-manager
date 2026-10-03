@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
@@ -7,8 +8,6 @@ import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Add, rename, reorder and remove the expense categories.
 ///
@@ -81,7 +80,6 @@ class _ReorderableList extends ConsumerWidget {
           child: Column(
             children: [
               _LookupTile(row: row),
-              const PerforatedRule(indent: Space.lg),
             ],
           ),
         );
@@ -105,7 +103,7 @@ class _LookupTile extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: palette.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         titleTextStyle:
             Type.display.copyWith(fontSize: 20, color: palette.print),
         title: const Text('Rename'),
@@ -156,7 +154,7 @@ class _LookupTile extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: palette.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         titleTextStyle:
             Type.display.copyWith(fontSize: 20, color: palette.print),
         contentTextStyle: Type.body.copyWith(color: palette.print),
@@ -196,7 +194,7 @@ class _LookupTile extends ConsumerWidget {
           const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
       child: Row(
         children: [
-          AppIcon(SolarIcons.HamburgerMenu, size: 18, color: palette.faded),
+          SolarIcon(SolarIcons.HamburgerMenu, size: 18, color: palette.faded),
           const SizedBox(width: Space.md),
           Tooltip(
             message: 'Change ink',
@@ -230,7 +228,7 @@ class _LookupTile extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: const AppIcon(SolarIcons.TrashBinMinimalistic, size: 20),
+            icon: const SolarIcon(SolarIcons.TrashBinMinimalistic, size: 20),
             color: palette.faded,
             tooltip: 'Delete',
             onPressed: () => _delete(context, ref),

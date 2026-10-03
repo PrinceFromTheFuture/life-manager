@@ -12,9 +12,8 @@ import 'package:shopping_list/apps/receipts/ui/ledger_plate.dart';
 import 'package:shopping_list/apps/receipts/ui/stats_charts.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 import 'package:shopping_list/core/design/widgets/count_up_money.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// Where the money went this week — or this month.
@@ -74,7 +73,7 @@ class _StatsSectionState extends ConsumerState<StatsSection> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final brightness = Theme.of(context).brightness;
+    final brightness = context.stampBrightness;
     final inks = <int?, Color>{
       null: palette.faded,
       for (final c in categories) c.id: c.stamp.of(brightness),
@@ -148,7 +147,6 @@ class _StatsSectionState extends ConsumerState<StatsSection> {
                   ),
           ),
           const SizedBox(height: Space.lg),
-          const PerforatedRule(),
           const SizedBox(height: Space.xl),
           Text(
             'BY CATEGORY',
@@ -193,7 +191,6 @@ class _StatsSectionState extends ConsumerState<StatsSection> {
                       ),
             ),
             const SizedBox(height: Space.xl),
-            const PerforatedRule(),
             const SizedBox(height: Space.lg),
             for (var i = 0; i < totals.length; i++) ...[
               _CategoryRow(
@@ -216,7 +213,6 @@ class _StatsSectionState extends ConsumerState<StatsSection> {
               ),
               if (i != totals.length - 1) ...[
                 const SizedBox(height: Space.md),
-                const PerforatedRule(),
                 const SizedBox(height: Space.md),
               ],
             ],
@@ -332,12 +328,13 @@ class StatsSummary extends ConsumerWidget {
           const SizedBox(height: Space.sm),
           Row(
             children: [
-              IconButton(
-                icon: const AppIcon(SolarIcons.AltArrowLeft),
-                tooltip: period.grain == StatsGrain.week
+              NightPlate(
+                icon: SolarIcons.AltArrowLeft,
+                label: period.grain == StatsGrain.week
                     ? 'Previous week'
                     : 'Previous month',
-                onPressed: () => ref.read(statsPeriodProvider.notifier).state =
+                size: 36,
+                onTap: () => ref.read(statsPeriodProvider.notifier).state =
                     period.previous,
               ),
               Expanded(
@@ -370,12 +367,13 @@ class StatsSummary extends ConsumerWidget {
                   ),
                 ),
               ),
-              IconButton(
-                icon: const AppIcon(SolarIcons.AltArrowRight),
-                tooltip: period.grain == StatsGrain.week
+              NightPlate(
+                icon: SolarIcons.AltArrowRight,
+                label: period.grain == StatsGrain.week
                     ? 'Next week'
                     : 'Next month',
-                onPressed: canAdvance
+                size: 36,
+                onTap: canAdvance
                     ? () => ref.read(statsPeriodProvider.notifier).state =
                         period.next
                     : null,
@@ -409,7 +407,6 @@ class _DaySlips extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: Space.md),
-        const PerforatedRule(),
         if (slips.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: Space.md),

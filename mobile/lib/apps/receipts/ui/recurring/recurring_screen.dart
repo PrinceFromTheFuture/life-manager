@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
 import 'package:shopping_list/apps/receipts/data/models/recurring_rule.dart';
 import 'package:shopping_list/apps/receipts/data/receipts_view.dart';
@@ -10,10 +11,9 @@ import 'package:shopping_list/apps/receipts/ui/accounts/income_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/expense_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/recurring/recurring_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/stats_charts.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// Recurring payments. Templates, not a ledger.
@@ -56,7 +56,7 @@ class _RecurringSectionState extends ConsumerState<RecurringSection> {
       data: (items) {
         if (items.isEmpty) return const _NothingRecurring();
 
-        final brightness = Theme.of(context).brightness;
+        final brightness = context.stampBrightness;
         final names = <int, String>{
           for (final c in categories)
             if (c.id != null) c.id!: c.name,
@@ -392,7 +392,6 @@ class _CategoryGroup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: Space.lg),
-        const TearEdge(),
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.lg, Space.md, Space.lg, 0),
           child: Row(
@@ -414,13 +413,11 @@ class _CategoryGroup extends StatelessWidget {
             ],
           ),
         ),
-        for (var i = 0; i < group.rules.length; i++) ...[
+        for (final rule in group.rules)
           _RuleRow(
-            rule: group.rules[i],
+            rule: rule,
             categoryInk: group.isIncoming ? null : inks[group.categoryId],
           ),
-          if (i != group.rules.length - 1) const PerforatedRule(indent: Space.lg),
-        ],
       ],
     );
   }
@@ -445,74 +442,104 @@ class _RuleRow extends ConsumerWidget {
         ? accounts.where((a) => a.id == rule.accountId).firstOrNull?.name
         : methods.where((m) => m.id == rule.paymentMethodId).firstOrNull?.label;
 
-    return Dismissible(
-      key: ValueKey('rule-${rule.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: palette.paperShade,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: Space.lg),
-        child: AppIcon(SolarIcons.TrashBinMinimalistic, color: palette.faded),
-      ),
-      confirmDismiss: (_) => _confirmDelete(context),
-      onDismissed: (_) =>
-          ref.read(financeControllerProvider).deleteRule(rule.id!),
-      child: InkWell(
-        onTap: () => _log(context),
-        onLongPress: () {
-          HapticFeedback.mediumImpact();
-          RecurringSheet.open(context, existing: rule);
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.lg,
-            vertical: Space.md + 2,
+    final ink = categoryInk ?? HomePalette.bone;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.lg, 0),
+      child: Dismissible(
+        key: ValueKey('rule-${rule.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: Space.lg),
+          decoration: BoxDecoration(
+            color: HomePalette.tile,
+            borderRadius: BorderRadius.circular(18),
           ),
-          child: Row(
-            children: [
-              if (categoryInk != null) ...[
-                Container(width: 3, height: 26, color: categoryInk),
-                const SizedBox(width: Space.md),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      rule.name,
-                      style: Type.item.copyWith(color: palette.print),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          child: const SolarIcon(
+            SolarIcons.TrashBinMinimalistic,
+            weight: SolarIconWeight.linear,
+            color: HomePalette.mist,
+            size: 20,
+          ),
+        ),
+        confirmDismiss: (_) => _confirmDelete(context),
+        onDismissed: (_) =>
+            ref.read(financeControllerProvider).deleteRule(rule.id!),
+        child: Material(
+          color: HomePalette.tile,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _log(context),
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              RecurringSheet.open(context, existing: rule);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: ink.withValues(alpha: 0.16),
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      [
-                        if (paidWith != null) paidWith,
-                        'the ${_ordinal(rule.dayOfMonth)}',
-                      ].join(' · '),
-                      style: Type.caption.copyWith(color: palette.faded),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Center(
+                      child: SolarIcon(
+                        rule.isIncome
+                            ? SolarIcons.ArrowLeftDown
+                            : SolarIcons.Repeat,
+                        weight: SolarIconWeight.linear,
+                        color: ink,
+                        size: 18,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: Space.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          rule.name,
+                          style: Type.item.copyWith(color: palette.print),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            if (paidWith != null) paidWith,
+                            'the ${_ordinal(rule.dayOfMonth)}',
+                          ].join(' · '),
+                          style: Type.caption.copyWith(color: palette.faded),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: Space.md),
+                  Text(
+                    logged ? 'IN' : 'MISSING',
+                    style: Type.eyebrow.copyWith(
+                      color: logged ? palette.faded : palette.scorch,
+                    ),
+                  ),
+                  const SizedBox(width: Space.sm),
+                  Text(
+                    rule.isIncome
+                        ? '+${Money.format(rule.amountMinor)}'
+                        : Money.format(rule.amountMinor),
+                    style: Type.monoBold.copyWith(color: palette.print),
+                  ),
+                ],
               ),
-              const SizedBox(width: Space.md),
-              Text(
-                logged ? 'IN' : 'MISSING',
-                style: Type.eyebrow.copyWith(
-                  color: logged ? palette.faded : palette.scorch,
-                ),
-              ),
-              const SizedBox(width: Space.sm),
-              Text(
-                rule.isIncome
-                    ? '+${Money.format(rule.amountMinor)}'
-                    : Money.format(rule.amountMinor),
-                style: Type.monoBold.copyWith(color: palette.print),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -535,7 +562,7 @@ class _RuleRow extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: palette.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Delete this recurring payment?'),
         content: const Text(
           'It leaves the list. Slips you already logged stay.',
@@ -579,7 +606,6 @@ class _NothingRecurring extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PerforatedRule(),
             const SizedBox(height: Space.lg),
             Text(
               'Nothing recurring yet.',

@@ -93,8 +93,7 @@ class _DayKey extends StatelessWidget {
         padding: const EdgeInsets.all(2),
         child: Material(
           color: selected ? palette.carbon : palette.paperShade,
-          // Keys are paper, and paper has square corners in this system.
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.circular(10),
           child: InkWell(
             onTap: () {
               unawaited(HapticFeedback.selectionClick());

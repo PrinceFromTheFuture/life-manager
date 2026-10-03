@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/burn.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// One line on the list.
 ///
@@ -33,7 +33,13 @@ class ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.thermal;
 
-    return ThermalSurface(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, large ? Space.sm : Space.sm),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: ThermalSurface(
       burned: item.isPicked,
       builder: (context, background, ink) {
         final nameStyle = (large ? Type.itemLarge : Type.item).copyWith(
@@ -130,12 +136,14 @@ class ItemRow extends StatelessWidget {
           ],
         );
       },
+        ),
+      ),
     );
   }
 }
 
-/// A square, because forms and receipts use boxes. A circle here would read as
-/// a radio button, which implies choosing one of several — the wrong promise.
+/// A round mark. Checking it fills the circle; the tick is knocked out of
+/// the row colour so it stays visible while the burn is still moving.
 class _PrintBox extends StatelessWidget {
   const _PrintBox({
     required this.checked,
@@ -163,11 +171,17 @@ class _PrintBox extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
+        shape: BoxShape.circle,
         border: Border.all(color: ink, width: 1.6),
         color: checked ? ink : Colors.transparent,
       ),
       child: checked
-          ? AppIcon(SolarIcons.CheckCircle, size: size - 8, color: background)
+          ? SolarIcon(
+              SolarIcons.CheckRead,
+              weight: SolarIconWeight.linear,
+              size: size * 0.62,
+              color: background,
+            )
           : null,
     );
   }

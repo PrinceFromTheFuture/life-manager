@@ -6,9 +6,9 @@ import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/trip.dart';
 import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/core/util/money.dart';
 
@@ -73,13 +73,9 @@ class _Detail extends ConsumerWidget {
           Text(trip.note!, style: Type.body.copyWith(color: palette.print)),
         ],
         const SizedBox(height: Space.md),
-        const PerforatedRule(),
-        const SizedBox(height: Space.md),
 
         for (final item in items) _DetailLine(item: item),
 
-        const SizedBox(height: Space.md),
-        const PerforatedRule(),
         const SizedBox(height: Space.lg),
 
         Row(
@@ -105,8 +101,6 @@ class _Detail extends ConsumerWidget {
         ],
 
         const SizedBox(height: Space.xl),
-        const TearEdge(),
-        const SizedBox(height: Space.xl),
 
         if (trip.receiptPath != null)
           _ReceiptImage(relativePath: trip.receiptPath!)
@@ -130,25 +124,33 @@ class _DetailLine extends StatelessWidget {
     final palette = context.thermal;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.sm),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              // The snapshot, not the current product name — this is a record
-              // of what was bought that day and must not drift.
-              item.nameSnapshot,
-              style: Type.item.copyWith(
-                color: item.isPicked ? palette.print : palette.faded,
+      padding: const EdgeInsets.only(bottom: Space.sm),
+      child: Material(
+        color: HomePalette.tile,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.lg,
+            vertical: Space.md,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.nameSnapshot,
+                  style: Type.item.copyWith(
+                    color: item.isPicked ? palette.print : palette.faded,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: Space.md),
+              Text(
+                item.measureLabel,
+                style: Type.mono.copyWith(color: palette.faded),
+              ),
+            ],
           ),
-          const SizedBox(width: Space.md),
-          Text(
-            item.measureLabel,
-            style: Type.mono.copyWith(color: palette.faded),
-          ),
-        ],
+        ),
       ),
     );
   }

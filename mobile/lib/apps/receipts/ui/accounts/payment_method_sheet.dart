@@ -10,8 +10,7 @@ import 'package:shopping_list/apps/receipts/ui/widgets/sheet_parts.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// Describing a way of paying.
 ///
@@ -162,7 +161,7 @@ class _PaymentMethodSheetState extends ConsumerState<PaymentMethodSheet> {
       builder: (context) => AlertDialog(
         backgroundColor: context.thermal.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Retire this method?'),
         content: Text(
           uses == 0
@@ -196,18 +195,18 @@ class _PaymentMethodSheetState extends ConsumerState<PaymentMethodSheet> {
     return Scaffold(
       backgroundColor: palette.paper,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const AppIcon(SolarIcons.CloseCircle),
-          tooltip: 'Discard',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: NightPlate(
+          icon: SolarIcons.CloseCircle,
+          label: 'Discard',
+          onTap: () => Navigator.of(context).pop(),
         ),
         title: Text(_isEditing ? 'Edit payment method' : 'New payment method'),
         actions: [
           if (_isEditing)
-            IconButton(
-              tooltip: 'Retire',
-              icon: const AppIcon(SolarIcons.Archive),
-              onPressed: _archive,
+            NightPlate(
+              icon: SolarIcons.Archive,
+              label: 'Retire',
+              onTap: _archive,
             ),
           const SizedBox(width: Space.sm),
         ],
@@ -292,7 +291,6 @@ class _PaymentMethodSheetState extends ConsumerState<PaymentMethodSheet> {
                   style: Type.caption.copyWith(color: palette.faded),
                 ),
                 const SizedBox(height: Space.md),
-                const PerforatedRule(),
                 const SizedBox(height: Space.lg),
                 if (_isCredit) ...[
                   SheetBlock(
@@ -321,7 +319,6 @@ class _PaymentMethodSheetState extends ConsumerState<PaymentMethodSheet> {
                     style: Type.caption.copyWith(color: palette.faded),
                   ),
                   const SizedBox(height: Space.md),
-                  const PerforatedRule(),
                 ],
               ],
             ),

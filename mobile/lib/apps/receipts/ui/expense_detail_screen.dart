@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -15,9 +16,7 @@ import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 
 /// Asks before destroying a receipt photo. Used from the list swipe and from
 /// the slip itself, so the wording is learned once.
@@ -37,7 +36,7 @@ Future<bool> confirmDeleteExpense(
         builder: (context) => AlertDialog(
           backgroundColor: palette.paper,
           surfaceTintColor: Colors.transparent,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           titleTextStyle:
               Type.display.copyWith(fontSize: 20, color: palette.print),
           contentTextStyle: Type.body.copyWith(color: palette.print),
@@ -138,7 +137,6 @@ class _Detail extends ConsumerWidget {
           style: Type.eyebrow.copyWith(color: palette.faded),
         ),
         const SizedBox(height: Space.lg),
-        const PerforatedRule(),
         const SizedBox(height: Space.lg),
         _Field(
             label: 'AMOUNT',
@@ -167,7 +165,6 @@ class _Detail extends ConsumerWidget {
           const _Field(label: 'SOURCE', value: 'Read from the receipt'),
         if (expense.latitude != null && expense.longitude != null) ...[
           const SizedBox(height: Space.lg),
-          const PerforatedRule(),
           const SizedBox(height: Space.lg),
           PlaceMap(
             latitude: expense.latitude!,
@@ -176,12 +173,10 @@ class _Detail extends ConsumerWidget {
           ),
         ] else if ((expense.locationLabel ?? '').isNotEmpty) ...[
           const SizedBox(height: Space.lg),
-          const PerforatedRule(),
           const SizedBox(height: Space.lg),
           _Field(label: 'PLACE', value: expense.locationLabel!),
         ],
         const SizedBox(height: Space.lg),
-        const TearEdge(),
         const SizedBox(height: Space.lg),
         if (expense.hasReceipt)
           _ReceiptImage(relativePath: expense.receiptPath)
@@ -375,7 +370,7 @@ class _NoReceiptState extends ConsumerState<NoReceipt> {
         const SizedBox(height: Space.md),
         OutlinedButton.icon(
           onPressed: _busy ? null : () => _attach(ImageSource.camera),
-          icon: const AppIcon(SolarIcons.CameraMinimalistic, size: 18),
+          icon: const SolarIcon(SolarIcons.CameraMinimalistic, size: 18),
           label: const Text('Photograph it'),
         ),
       ],

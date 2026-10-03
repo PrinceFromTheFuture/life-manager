@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +9,7 @@ import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 import 'package:shopping_list/core/design/widgets/inset_drawer.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// Pick a view, or make one. The page remembers whichever was used last.
@@ -81,7 +80,6 @@ class _ViewsList extends ConsumerWidget {
               if (context.mounted) scope.close();
             },
           ),
-          const PerforatedRule(),
           for (final view in views) ...[
             _ViewRow(
               name: view.name,
@@ -93,7 +91,6 @@ class _ViewsList extends ConsumerWidget {
               },
               onEdit: () => onEdit(view, scope),
             ),
-            const PerforatedRule(),
           ],
           const SizedBox(height: Space.md),
           SizedBox(
@@ -140,7 +137,7 @@ class _ViewRow extends StatelessWidget {
             SizedBox(
               width: 26,
               child: selected
-                  ? AppIcon(
+                  ? SolarIcon(
                       SolarIcons.CheckCircle,
                       size: 18,
                       color: palette.print,
@@ -161,7 +158,7 @@ class _ViewRow extends StatelessWidget {
               IconButton(
                 tooltip: 'Edit $name',
                 visualDensity: VisualDensity.compact,
-                icon: AppIcon(
+                icon: SolarIcon(
                   SolarIcons.AltArrowRight,
                   size: 18,
                   color: palette.faded,
@@ -223,7 +220,7 @@ class _ViewEditorState extends ConsumerState<_ViewEditor> {
       builder: (context) => AlertDialog(
         backgroundColor: palette.paper,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         titleTextStyle:
             Type.display.copyWith(fontSize: 20, color: palette.print),
         contentTextStyle: Type.body.copyWith(color: palette.print),
@@ -289,7 +286,6 @@ class _ViewEditorState extends ConsumerState<_ViewEditor> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: Space.sm),
-              const PerforatedRule(),
               const SizedBox(height: Space.lg),
               Text(
                 'ACCOUNTS',
@@ -305,7 +301,6 @@ class _ViewEditorState extends ConsumerState<_ViewEditor> {
                     if (!_ids.remove(id)) _ids.add(id);
                   }),
                 ),
-                if (account != accounts.last) const PerforatedRule(),
               ],
               const SizedBox(height: Space.md),
               FilledButton(
@@ -339,7 +334,7 @@ class _AccountToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final brightness = Theme.of(context).brightness;
+    final brightness = context.stampBrightness;
     final mark = account.stamp;
 
     return InkWell(
@@ -348,7 +343,7 @@ class _AccountToggle extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: Space.md),
         child: Row(
           children: [
-            AppIcon(
+            SolarIcon(
               mark.icon,
               size: 20,
               color: mark.ink.of(brightness),
@@ -360,7 +355,7 @@ class _AccountToggle extends StatelessWidget {
                 style: Type.item.copyWith(color: palette.print),
               ),
             ),
-            AppIcon(
+            SolarIcon(
               selected ? SolarIcons.CheckCircle : SolarIcons.AddCircle,
               size: 20,
               color: selected ? palette.print : palette.faded,

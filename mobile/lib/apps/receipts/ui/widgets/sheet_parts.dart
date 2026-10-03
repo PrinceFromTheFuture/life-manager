@@ -5,14 +5,15 @@ import 'package:shopping_list/apps/receipts/ui/register_keypad.dart';
 import 'package:shopping_list/apps/receipts/ui/widgets/category_stamp.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
-import 'package:shopping_list/core/util/money.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
-/// One labelled section of a sheet, closed by a perforated rule.
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
+import 'package:shopping_list/core/util/money.dart';
+
+/// One labelled section of a sheet.
 ///
-/// The expense sheet established this rhythm — eyebrow, content, tear — and
-/// every other sheet in the app now borrows it, so recording income does not
+/// The expense sheet established this rhythm — eyebrow, then content — and
+/// every other sheet in the app borrows it, so recording income does not
 /// feel like a different product from recording an expense.
 class SheetBlock extends StatelessWidget {
   const SheetBlock({super.key, required this.label, required this.child});
@@ -30,8 +31,6 @@ class SheetBlock extends StatelessWidget {
         Text(label, style: Type.eyebrow.copyWith(color: palette.faded)),
         const SizedBox(height: Space.sm),
         child,
-        const SizedBox(height: Space.md),
-        const PerforatedRule(),
         const SizedBox(height: Space.lg),
       ],
     );
@@ -80,10 +79,11 @@ class SheetAmountRow extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            AppIcon(
+            SolarIcon(
               active ? SolarIcons.Minimize : SolarIcons.Calculator,
+              weight: SolarIconWeight.linear,
               size: 20,
-              color: active ? palette.carbon : palette.faded,
+              color: active ? palette.carbon : HomePalette.mist,
             ),
           ],
         ),
@@ -217,7 +217,7 @@ class SheetChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.thermal;
-    final fill = ink?.of(Theme.of(context).brightness) ?? palette.carbon;
+    final fill = ink?.of(context.stampBrightness) ?? palette.carbon;
     // Paper is the contrasting ground in both themes: dark inks on a light
     // sheet, pastel inks on a dim one.
     final onFill = palette.paper;

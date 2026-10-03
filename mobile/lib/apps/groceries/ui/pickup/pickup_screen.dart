@@ -8,11 +8,10 @@ import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/apps/groceries/ui/checkout/checkout_screen.dart';
 import 'package:shopping_list/apps/groceries/ui/list/item_row.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// The mode for actually being in the shop.
 ///
@@ -57,10 +56,10 @@ class _PickupScreenState extends ConsumerState<PickupScreen> {
     return Scaffold(
       backgroundColor: palette.paper,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const AppIcon(SolarIcons.CloseCircle),
-          tooltip: 'Leave pick-up',
-          onPressed: () => Navigator.of(context).pop(),
+        leading: NightPlate(
+          icon: SolarIcons.CloseCircle,
+          label: 'Leave pick-up',
+          onTap: () => Navigator.of(context).pop(),
         ),
         title: const Text('Pick-up'),
       ),
@@ -106,18 +105,13 @@ class _PickupBody extends ConsumerWidget {
 
         SliverList.builder(
           itemCount: toBuy.length,
-          itemBuilder: (context, i) => Column(
-            children: [
-              ItemRow(
-                item: toBuy[i],
-                large: true,
-                onToggle: () {
-                  controller.togglePicked(toBuy[i]);
-                  HapticFeedback.mediumImpact();
-                },
-              ),
-              const PerforatedRule(indent: Space.lg),
-            ],
+          itemBuilder: (context, i) => ItemRow(
+            item: toBuy[i],
+            large: true,
+            onToggle: () {
+              controller.togglePicked(toBuy[i]);
+              HapticFeedback.mediumImpact();
+            },
           ),
         ),
 
@@ -127,7 +121,6 @@ class _PickupBody extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: Space.lg),
               child: Column(
                 children: [
-                  const TearEdge(),
                   const SizedBox(height: Space.sm),
                   Text(
                     'IN THE CART · ${inCart.length}',
@@ -140,18 +133,13 @@ class _PickupBody extends ConsumerWidget {
 
         SliverList.builder(
           itemCount: inCart.length,
-          itemBuilder: (context, i) => Column(
-            children: [
-              ItemRow(
-                item: inCart[i],
-                large: true,
-                onToggle: () {
-                  controller.togglePicked(inCart[i]);
-                  HapticFeedback.selectionClick();
-                },
-              ),
-              const PerforatedRule(indent: Space.lg),
-            ],
+          itemBuilder: (context, i) => ItemRow(
+            item: inCart[i],
+            large: true,
+            onToggle: () {
+              controller.togglePicked(inCart[i]);
+              HapticFeedback.selectionClick();
+            },
           ),
         ),
 
@@ -217,8 +205,6 @@ class _RemainingHeader extends StatelessWidget {
             '${list.pickedCount} OF ${list.total} IN THE CART',
             style: Type.eyebrow.copyWith(color: palette.faded),
           ),
-          const SizedBox(height: Space.md),
-          const PerforatedRule(),
         ],
       ),
     );

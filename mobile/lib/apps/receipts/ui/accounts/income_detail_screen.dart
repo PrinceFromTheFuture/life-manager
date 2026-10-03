@@ -6,7 +6,6 @@ import 'package:shopping_list/apps/receipts/data/models/category_ink.dart';
 import 'package:shopping_list/apps/receipts/state/providers.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// The thinner sibling of an expense slip: who paid you, how much, when.
@@ -19,7 +18,7 @@ class IncomeDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = context.thermal;
     final async = ref.watch(incomeDetailProvider(incomeId));
-    final brightness = Theme.of(context).brightness;
+    final brightness = context.stampBrightness;
     final inInk = CategoryInk.pine.of(brightness);
 
     return Scaffold(
@@ -60,7 +59,6 @@ class IncomeDetailScreen extends ConsumerWidget {
                 style: Type.totalDisplay.copyWith(color: inInk, fontSize: 40),
               ),
               const SizedBox(height: Space.lg),
-              const PerforatedRule(),
               const SizedBox(height: Space.lg),
               _Row(label: 'FROM', value: income.sourceName),
               _Row(

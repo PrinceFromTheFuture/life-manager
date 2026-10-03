@@ -131,6 +131,11 @@ class ThermalPalette extends ThemeExtension<ThermalPalette> {
 /// than the full `Theme.of(context).extension<...>()!` incantation.
 extension ThermalContext on BuildContext {
   ThermalPalette get thermal => Theme.of(this).extension<ThermalPalette>()!;
+
+  /// Stamp-pad ink for the paper underneath. Night paper wants the light pads.
+  Brightness get stampBrightness => thermal.paper.computeLuminance() < 0.15
+      ? Brightness.dark
+      : Theme.of(this).brightness;
 }
 
 /// Spacing scale. Tight, because a receipt is tight.

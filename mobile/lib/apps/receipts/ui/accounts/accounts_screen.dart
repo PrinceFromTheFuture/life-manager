@@ -11,7 +11,6 @@ import 'package:shopping_list/apps/receipts/ui/accounts/glass_passbook.dart';
 import 'package:shopping_list/apps/receipts/ui/accounts/ledger_entry_row.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 
 /// What you have, as frosted passbook pages with the ledger of the page
 /// you are looking at printed underneath.
@@ -102,7 +101,6 @@ class _AccountsSectionState extends ConsumerState<AccountsSection> {
               ),
             ),
             const SizedBox(height: Space.sm),
-            const PerforatedRule(),
             Expanded(
               child: AnimatedSwitcher(
                 duration: reduce ? Duration.zero : Motion.settle,
@@ -167,8 +165,7 @@ class _AccountLedger extends ConsumerWidget {
         return ListView.separated(
           padding: const EdgeInsets.only(bottom: Space.xxl),
           itemCount: entries.length,
-          separatorBuilder: (context, index) =>
-              const PerforatedRule(indent: Space.lg),
+          separatorBuilder: (context, index) => const SizedBox.shrink(),
           itemBuilder: (context, i) => LedgerEntryRow(line: entries[i]),
         );
       },
@@ -259,7 +256,6 @@ class _NoAccounts extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PerforatedRule(),
             const SizedBox(height: Space.lg),
             Text(
               'No accounts yet.',
@@ -297,7 +293,6 @@ class _EmptyView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PerforatedRule(),
             const SizedBox(height: Space.lg),
             Text(
               'Nothing in this view.',

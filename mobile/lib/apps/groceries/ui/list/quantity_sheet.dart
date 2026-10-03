@@ -8,10 +8,8 @@ import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// Units offered for a line. `null` means a plain count, shown as `×`.
 const List<(String label, String? unit)> _units = [
@@ -94,8 +92,6 @@ class _QuantitySheetState extends ConsumerState<_QuantitySheet> {
               widget.item.nameSnapshot,
               style: Type.display.copyWith(color: palette.print, fontSize: 26),
             ),
-            const SizedBox(height: Space.md),
-            const PerforatedRule(),
             const SizedBox(height: Space.lg),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -169,18 +165,11 @@ class _StepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
-    final enabled = onPressed != null;
-
-    return InkPlate(
-      onPressed: onPressed,
-      primary: false,
-      size: const Size(64, 64),
-      child: AppIcon(
-        icon,
-        size: 28,
-        color: enabled ? palette.print : palette.faded,
-      ),
+    return NightPlate(
+      icon: icon,
+      label: icon == SolarIcons.MinusCircle ? 'Decrease' : 'Increase',
+      size: 64,
+      onTap: onPressed,
     );
   }
 }
@@ -200,26 +189,14 @@ class _UnitChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.thermal;
     final light = Theme.of(context).brightness == Brightness.light;
+    final onSelected = light ? palette.paper : palette.print;
 
     return Material(
       color: selected ? palette.carbon : palette.paperShade,
-      shape: InkPlateBorder(
-        borderRadius: Radii.key,
-        side: BorderSide(
-          color: selected ? Plate.edge(palette) : palette.print,
-          width: 1.5,
-        ),
-        insetColor: selected
-            ? Plate.inset(light ? palette.paper : palette.print)
-            : null,
-      ),
+      borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: Radii.key,
         onTap: onTap,
-        overlayColor: WidgetStatePropertyAll(
-          palette.scorch.withValues(alpha: 0.18),
-        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: Space.lg,
@@ -228,9 +205,7 @@ class _UnitChip extends StatelessWidget {
           child: Text(
             label,
             style: Type.monoBold.copyWith(
-              color: selected
-                  ? (light ? palette.paper : palette.print)
-                  : palette.print,
+              color: selected ? onSelected : palette.print,
             ),
           ),
         ),

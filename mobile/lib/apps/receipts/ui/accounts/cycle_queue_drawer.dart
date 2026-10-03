@@ -10,7 +10,6 @@ import 'package:shopping_list/apps/receipts/ui/expense_detail_screen.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
 import 'package:shopping_list/core/design/widgets/inset_drawer.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// The charges on a credit card that have not left the account yet.
@@ -84,7 +83,7 @@ class _CycleQueueDrawer extends ConsumerWidget {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: items.length,
-                    separatorBuilder: (_, __) => const PerforatedRule(),
+                    separatorBuilder: (_, __) => const SizedBox(height: Space.sm),
                     itemBuilder: (context, i) => _ChargeRow(expense: items[i]),
                   ),
                 ),

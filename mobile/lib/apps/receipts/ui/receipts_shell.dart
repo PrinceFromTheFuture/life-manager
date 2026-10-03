@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 
 import 'package:shopping_list/apps/receipts/data/expense_repository.dart';
 import 'package:shopping_list/apps/receipts/data/models/account_view.dart';
@@ -18,13 +19,12 @@ import 'package:shopping_list/apps/receipts/ui/nav/divider_tabs.dart';
 import 'package:shopping_list/apps/receipts/ui/recurring/recurring_screen.dart';
 import 'package:shopping_list/apps/receipts/ui/recurring/recurring_sheet.dart';
 import 'package:shopping_list/apps/receipts/ui/stats_screen.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
 import 'package:shopping_list/core/design/widgets/count_up_money.dart';
-import 'package:shopping_list/core/design/widgets/ink_plate.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 import 'package:shopping_list/core/util/money.dart';
 
 /// The four sections of the receipts app, in one frame.
@@ -98,37 +98,38 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
     final index = ref.watch(receiptsTabProvider);
 
     return Scaffold(
-      backgroundColor: palette.paper,
+      backgroundColor: HomePalette.ground,
       appBar: AppBar(
         title: const Text('Receipts'),
         actions: [
-          IconButton(
-            tooltip: 'Export month',
-            icon: const AppIcon(SolarIcons.Export),
-            onPressed: () => exportSelectedMonth(context, ref),
+          NightPlate(
+            icon: SolarIcons.Export,
+            label: 'Export month',
+            onTap: () => exportSelectedMonth(context, ref),
           ),
-          IconButton(
-            tooltip: 'Accountant',
-            icon: const AppIcon(SolarIcons.Plain),
-            onPressed: () => Navigator.of(context).push(
+          const SizedBox(width: Space.sm),
+          NightPlate(
+            icon: SolarIcons.Plain,
+            label: 'Accountant',
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const AccountantQueueScreen(),
               ),
             ),
           ),
-          IconButton(
-            tooltip: 'Categories',
-            icon: const AppIcon(SolarIcons.Tuning),
+          const SizedBox(width: Space.sm),
+          NightPlate(
+            icon: SolarIcons.Tuning,
+            label: 'Categories',
             // Straight to categories. Accounts used to live behind this button
             // too; they have a whole section of their own now, and two places
             // to edit the same thing is one place too many.
-            onPressed: () => Navigator.of(context).push(
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                  builder: (_) => const ManageLookupsScreen(),
+                builder: (_) => const ManageLookupsScreen(),
               ),
             ),
           ),
@@ -143,8 +144,6 @@ class _ReceiptsShellState extends ConsumerState<ReceiptsShell>
             onSelected: _select,
           ),
           _Summary(index: index),
-          
-          const PerforatedRule(),
           Expanded(
             child: FadeTransition(
               opacity: _fade,
@@ -248,10 +247,11 @@ class _AccountsSummary extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: Space.xs),
-                    AppIcon(
+                    const SolarIcon(
                       SolarIcons.AltArrowDown,
+                      weight: SolarIconWeight.linear,
                       size: 14,
-                      color: palette.faded,
+                      color: HomePalette.mist,
                     ),
                   ],
                 ),
@@ -359,8 +359,6 @@ class _ActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.thermal;
-
     final (label, icon, onPressed) = switch (index) {
       ReceiptsShell.accounts => (
           'Income',
@@ -384,14 +382,14 @@ class _ActionBar extends StatelessWidget {
       return SizedBox(height: MediaQuery.paddingOf(context).bottom);
     }
 
-    final plate = FilledButton.icon(
-      onPressed: onPressed,
-      icon: AppIcon(icon!, size: 20),
-      label: Text(label),
+    final button = _NightButton(
+      label: label,
+      icon: icon!,
+      onPressed: onPressed!,
     );
 
     return Container(
-      color: palette.paper,
+      color: HomePalette.ground,
       padding: EdgeInsets.fromLTRB(
         Space.lg,
         Space.md,
@@ -401,36 +399,73 @@ class _ActionBar extends StatelessWidget {
       child: index == ReceiptsShell.accounts
           ? Row(
               children: [
-                InkPlate(
-                  primary: false,
-                  size: const Size(Plate.height, Plate.height),
-                  semanticLabel: 'New account or payment method',
-                  onPressed: () => openNewFinanceDrawer(context),
-                  child: AppIcon(
-                    SolarIcons.AddCircle,
-                    size: 22,
-                    color: palette.print,
-                  ),
+                NightPlate(
+                  icon: SolarIcons.AddCircle,
+                  label: 'New account or payment method',
+                  onTap: () => openNewFinanceDrawer(context),
                 ),
                 const SizedBox(width: Space.sm),
                 Expanded(
-                  child: FilledButton.icon(
+                  child: _NightButton(
+                    label: 'Income',
+                    icon: SolarIcons.ArrowLeftDown,
                     onPressed: () => IncomeSheet.open(context),
-                    icon: const AppIcon(SolarIcons.ArrowLeftDown, size: 18),
-                    label: const Text('Income'),
                   ),
                 ),
                 const SizedBox(width: Space.sm),
                 Expanded(
-                  child: FilledButton.icon(
+                  child: _NightButton(
+                    label: 'Transfer',
+                    icon: SolarIcons.Restart,
                     onPressed: () => TransferSheet.open(context),
-                    icon: const AppIcon(SolarIcons.Restart, size: 18),
-                    label: const Text('Transfer'),
+                    primary: false,
                   ),
                 ),
               ],
             )
-          : SizedBox(width: double.infinity, child: plate),
+          : SizedBox(width: double.infinity, child: button),
+    );
+  }
+}
+
+class _NightButton extends StatelessWidget {
+  const _NightButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.primary = true,
+  });
+
+  final String label;
+  final SolarIconData icon;
+  final VoidCallback onPressed;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = primary ? HomePalette.bone : HomePalette.tile;
+    final foreground = primary ? HomePalette.ink : HomePalette.bone;
+    return SizedBox(
+      height: 54,
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          elevation: 0,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(14)),
+          ),
+        ),
+        icon: SolarIcon(
+          icon,
+          weight: SolarIconWeight.linear,
+          color: foreground,
+          size: 18,
+        ),
+        label: Text(label),
+      ),
     );
   }
 }

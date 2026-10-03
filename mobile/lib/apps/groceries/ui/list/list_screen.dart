@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutty_solar_icons/solar_icons_flutter.dart';
 import 'package:intl/intl.dart';
 
 import 'package:shopping_list/apps/groceries/data/models/trip_item.dart';
 import 'package:shopping_list/apps/groceries/data/shopping_repository.dart';
+import 'package:shopping_list/apps/home/ui/home_palette.dart';
 import 'package:shopping_list/core/design/paper_snack.dart';
 import 'package:shopping_list/core/design/theme.dart';
 import 'package:shopping_list/core/design/tokens.dart';
-import 'package:shopping_list/core/design/widgets/perforation.dart';
 import 'package:shopping_list/apps/groceries/state/providers.dart';
 import 'package:shopping_list/apps/groceries/ui/checkout/checkout_screen.dart';
 import 'package:shopping_list/apps/groceries/ui/history/history_screen.dart';
@@ -15,7 +16,7 @@ import 'package:shopping_list/apps/groceries/ui/pickup/pickup_screen.dart';
 import 'package:shopping_list/apps/groceries/ui/list/add_item_bar.dart';
 import 'package:shopping_list/apps/groceries/ui/list/item_row.dart';
 import 'package:shopping_list/apps/groceries/ui/list/quantity_sheet.dart';
-import 'package:shopping_list/core/design/widgets/app_icon.dart';
+import 'package:shopping_list/core/design/widgets/night_plate.dart';
 
 /// The main shopping list — a continuous roll of paper.
 ///
@@ -37,10 +38,10 @@ class ListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Groceries'),
         actions: [
-          IconButton(
-            tooltip: 'Past trips',
-            icon: const AppIcon(SolarIcons.BillList),
-            onPressed: () => Navigator.of(context).push(
+          NightPlate(
+            icon: SolarIcons.BillList,
+            label: 'Past trips',
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const HistoryScreen(),
               ),
@@ -108,7 +109,6 @@ class _Roll extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: Space.lg),
               child: Column(
                 children: [
-                  const TearEdge(),
                   const SizedBox(height: Space.sm),
                   Text(
                     'IN THE CART',
@@ -159,7 +159,6 @@ class _RollHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Space.md),
-          const PerforatedRule(),
         ],
       ),
     );
@@ -176,20 +175,24 @@ class _DismissibleRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = context.thermal;
-
-    return Column(
-      children: [
-        Dismissible(
-          key: ValueKey('item-${item.id}'),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            color: palette.paperShade,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: Space.lg),
-            child: AppIcon(SolarIcons.TrashBinMinimalistic, color: palette.faded),
+    return Dismissible(
+        key: ValueKey('item-${item.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: Space.lg),
+          decoration: BoxDecoration(
+            color: HomePalette.tile,
+            borderRadius: BorderRadius.circular(18),
           ),
-          onDismissed: (_) async {
+          child: const SolarIcon(
+            SolarIcons.TrashBinMinimalistic,
+            weight: SolarIconWeight.linear,
+            color: HomePalette.mist,
+            size: 20,
+          ),
+        ),
+        onDismissed: (_) async {
             final controller = ref.read(activeListProvider.notifier);
             final removed = await controller.deleteItem(item);
 
@@ -208,9 +211,6 @@ class _DismissibleRow extends ConsumerWidget {
                 ref.read(activeListProvider.notifier).togglePicked(item),
             onEdit: () => showQuantitySheet(context, ref, item),
           ),
-        ),
-        const PerforatedRule(indent: Space.lg),
-      ],
     );
   }
 }
@@ -273,8 +273,6 @@ class _EmptyList extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PerforatedRule(),
-            const SizedBox(height: Space.lg),
             Text(
               'Nothing on the list yet.',
               style: Type.display.copyWith(color: palette.print, fontSize: 28),

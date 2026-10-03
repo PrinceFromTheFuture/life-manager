@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:shopping_list/apps/calendar/data/calendar_activity.dart';
 import 'package:shopping_list/apps/calendar/data/calendar_migrations.dart';
-import 'package:shopping_list/apps/calendar/ui/calendar_shell.dart';
+import 'package:shopping_list/apps/calendar/ui/calendar_screen.dart';
 import 'package:shopping_list/core/activity/activity_entry.dart';
 import 'package:shopping_list/core/activity/activity_row_shell.dart';
 import 'package:shopping_list/core/app/mini_app.dart';
@@ -24,7 +24,7 @@ class CalendarApp implements MiniApp {
   String get tagline => 'What happens. Where you have to be.';
 
   /// Iron-gall teal — timetable ink, harbour charts. Distinct from ledger
-  /// blue, gym iron, tasks kraft and groceries violet.
+  /// blue, gym iron and groceries violet.
   @override
   AppInk get ink => const AppInk(
         light: Color(0xFF2F5A5A),
@@ -35,10 +35,13 @@ class CalendarApp implements MiniApp {
   SolarIconData get icon => SolarIcons.Calendar;
 
   @override
+  bool get useNightTheme => true;
+
+  @override
   ModuleMigrations get migrations => calendarMigrations;
 
   @override
-  Widget buildHome(BuildContext context) => const CalendarShell();
+  Widget buildHome(BuildContext context) => const CalendarScreen();
 
   @override
   List<QuickAction> quickActions(BuildContext context) => const [];
@@ -54,7 +57,7 @@ class CalendarApp implements MiniApp {
           : () => openMiniApp(
                 context,
                 this,
-                initialScreen: (_) => CalendarShell(occurredAt: entry.occurredAt),
+                initialScreen: (_) => CalendarScreen(occurredAt: entry.occurredAt),
               ),
     );
   }
@@ -63,7 +66,7 @@ class CalendarApp implements MiniApp {
   Route<void>? routeForActivity(ActivityEntry entry) {
     if (entry.refId == null) return null;
     return MaterialPageRoute<void>(
-      builder: (_) => CalendarShell(occurredAt: entry.occurredAt),
+      builder: (_) => CalendarScreen(occurredAt: entry.occurredAt),
     );
   }
 }
